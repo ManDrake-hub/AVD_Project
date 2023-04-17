@@ -1,0 +1,15 @@
+{
+	"n_vehicles": 1,
+	"vehicles": 
+	[
+		"vehicle.lincoln.mkz_2020",
+		"vehicle.lincoln.mkz_2020"
+	],
+	"colors": 
+	[
+		[255, 0, 0, 255],
+		[255, 0, 0, 255]
+	],
+	"height": 35,
+	"debug_local": true
+}
