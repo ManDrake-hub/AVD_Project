@@ -2,6 +2,7 @@
 # export ROUTES=./routes_avddiem_exam.xml
 # export ROUTES=./route_controlling.xml
 export ROUTES=./second_scenario.xml
+# export ROUTES=./test.xml
 export REPETITIONS=1
 export DEBUG_CHALLENGE=1
 export TEAM_AGENT=./carla_behavior_agent/basic_autonomous_agent.py

@@ -64,6 +64,7 @@ class RouteScenario(BasicScenario):
         """
         self.config = config
         self.route = self._get_route(config)
+
         self.list_scenarios = []
         sampled_scenario_definitions = self._filter_scenarios(config.scenario_configs)
 
@@ -205,6 +206,7 @@ class RouteScenario(BasicScenario):
         """
         Draw a list of waypoints at a certain height given in vertical_shift.
         """
+        # TODO: this is the code responsible for the points that we see along the road
         for w in waypoints:
             wp = w[0].location + carla.Location(z=vertical_shift)
 

@@ -280,6 +280,7 @@ class LeaderboardEvaluator(object):
                     self._ros1_server.start()
 
                 agent_instance = agent_class_obj(args.host, args.port, args.debug)
+                # TODO: this sets the global plan of basic_autonomous agent
                 agent_instance.set_global_plan(scenario.gps_route, scenario.route)
                 # TODO: this gives it the config from args
                 agent_instance.setup(args.agent_config.replace(".json", f"_{i}.json"))

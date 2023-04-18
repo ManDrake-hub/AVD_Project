@@ -92,7 +92,9 @@ class LocalPlanner(object):
         # TODO: load colors
         self.index = int(__file__.replace(".py", "").split("_")[-1])
         with open("./config.json", "r") as f:
-            self.color = json.load(f)["colors"][self.index]
+            d = json.load(f)
+            self.color = d["colors"][self.index]
+            self.only_next = bool(d["only_next"])
 
         # Overload parameters
         if opt_dict:
@@ -274,7 +276,11 @@ class LocalPlanner(object):
             control = self._vehicle_controller.run_step(self._target_speed, self.target_waypoint)
 
         if debug:
-            draw_waypoints(self._vehicle.get_world(), [self.target_waypoint], 1.0, self.color)
+            if self.only_next:
+                draw_waypoints(self._vehicle.get_world(), [self.target_waypoint], 1.0, self.color)
+            else:
+                # TODO: attenzione che questa chiamata è resource intensive, da preferire la only_next
+                draw_waypoints(self._vehicle.get_world(), [x[0] for x in list(self._waypoints_queue)], 1.0, self.color, lifetime=1)
 
         return control
 

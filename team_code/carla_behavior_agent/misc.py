@@ -12,7 +12,7 @@ import math
 import numpy as np
 import carla
 
-def draw_waypoints(world, waypoints, z=0.5, color=(255, 0, 0, 255)):
+def draw_waypoints(world, waypoints, z=0.5, color=(255, 0, 0, 255), lifetime=1.0):
     """
     Draw a list of waypoints at a certain height given in z.
 
@@ -25,8 +25,8 @@ def draw_waypoints(world, waypoints, z=0.5, color=(255, 0, 0, 255)):
         begin = wpt_t.location + carla.Location(z=z)
         angle = math.radians(wpt_t.rotation.yaw)
         end = begin + carla.Location(x=math.cos(angle), y=math.sin(angle))
-        color = carla.Color(*color)
-        world.debug.draw_arrow(begin, end, arrow_size=0.3, life_time=1.0, color=color)
+        _color = carla.Color(*color)
+        world.debug.draw_arrow(begin, end, arrow_size=0.3, life_time=lifetime, color=_color)
 
 
 def get_speed(vehicle):

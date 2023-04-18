@@ -15,11 +15,13 @@ import carla
 BehaviorAgent = __import__("behavior_agent_" + __file__.replace(".py", "").split("_")[-1]).BehaviorAgent
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 import importlib
+from agents.navigation.local_planner import RoadOption
 
 from leaderboard.autoagents.autonomous_agent import AutonomousAgent, Track
 
 import json
 from utils import Streamer
+import xmltodict
 
 def get_entry_point():
     return 'MyTeamAgent'
@@ -84,6 +86,24 @@ class MyTeamAgent(AutonomousAgent):
         """
         return self.configs["sensors"]
 
+    def draw_waypoints(self, waypoints, vertical_shift=0.1, size=0.05, persistency=10000):
+        for w in waypoints:
+            wp = w[0].transform.location + carla.Location(z=vertical_shift)
+
+            if w[1] == RoadOption.LEFT:  # Yellow
+                color = carla.Color(128, 128, 0)
+            elif w[1] == RoadOption.RIGHT:  # Cyan
+                color = carla.Color(0, 128, 128)
+            elif w[1] == RoadOption.CHANGELANELEFT:  # Orange
+                color = carla.Color(128, 32, 0)
+            elif w[1] == RoadOption.CHANGELANERIGHT:  # Dark Cyan
+                color = carla.Color(0, 32, 128)
+            elif w[1] == RoadOption.STRAIGHT:  # Gray
+                color = carla.Color(64, 64, 64)
+            else:  # LANEFOLLOW
+                color = carla.Color(0, 128, 0)  # Green
+            CarlaDataProvider.get_world().debug.draw_point(wp, size=size, color=color, life_time=persistency)
+
     def run_step(self, input_data, timestamp):
         """
         Execute one step of navigation. 
@@ -105,19 +125,32 @@ class MyTeamAgent(AutonomousAgent):
             # TODO: load the agent imported
             self._agent = BehaviorAgent(hero_actor, opt_dict=self.configs)
 
+            # TODO: this creates the plan that we are going to use
             plan = []
             prev_wp = None
             for transform, _ in self._global_plan_world_coord:
+                # TODO: this is different from what reported in the following comments
+                # this sets the plan by using the map waypoints, but basic_autonoums_agent
+                # extends AutonomousAgent which sets a global plan itself (that function is called by leaderboard_evaluator)
                 wp = CarlaDataProvider.get_map().get_waypoint(transform.location)
                 if prev_wp:
                     plan.extend(self._agent.trace_route(prev_wp, wp))
                 prev_wp = wp
+
+            ####################################################
+            # TODO: this is a problem, if we draw the waypoints given to our agent,
+            # they are different from the one displayed by our route_scenario
+            # print(len(plan), len(self._global_plan))
+            # TODO: add this to config file
+            self.draw_waypoints(waypoints=plan)
+            ####################################################
 
             self._agent.set_global_plan(plan)
 
             return carla.VehicleControl()
 
         else:
+
             controls = self._agent.run_step(debug=self.debug_local)
             if self.__show:
                 self.showServer.send_frame("RGB", input_data["Center"][1])
@@ -133,7 +166,7 @@ class MyTeamAgent(AutonomousAgent):
                     fp.close()
             # TODO: Show on the vehicle, the index associated with the agent
             CarlaDataProvider.get_world().debug.draw_string(self._hero_actor.get_location(), str(self.index), color=self.color)
-                    
+
             return controls
 
     def destroy(self):

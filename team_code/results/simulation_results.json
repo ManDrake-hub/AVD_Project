@@ -10,7 +10,7 @@
                 "collisions_vehicle": 0.0,
                 "red_light": 0.0,
                 "stop_infraction": 0.0,
-                "outside_route_lanes": 0.063,
+                "outside_route_lanes": 0.045,
                 "min_speed_infractions": 0.0,
                 "yield_emergency_vehicles_infractions": 0.0,
                 "scenario_timeouts": 0.0,
@@ -19,9 +19,9 @@
                 "route_timeout": 0.0
             },
             "scores_mean": {
-                "score_composed": 58.637844,
-                "score_route": 65.74,
-                "score_penalty": 0.891966
+                "score_composed": 5.172719,
+                "score_route": 10.24,
+                "score_penalty": 0.505148
             },
             "scores_std_dev": {
                 "score_composed": "NaN",
@@ -55,7 +55,7 @@
                     "red_light": [],
                     "stop_infraction": [],
                     "outside_route_lanes": [
-                        "Agent went outside its route lanes for about 62.814 meters (10.8% of the completed route)"
+                        "Agent went outside its route lanes for about 44.809 meters (49.49% of the completed route)"
                     ],
                     "min_speed_infractions": [],
                     "yield_emergency_vehicles_infractions": [],
@@ -65,14 +65,14 @@
                     "route_timeout": []
                 },
                 "scores": {
-                    "score_route": 65.74,
-                    "score_penalty": 0.891966,
-                    "score_composed": 58.637844
+                    "score_route": 10.24,
+                    "score_penalty": 0.505148,
+                    "score_composed": 5.172719
                 },
                 "meta": {
                     "route_length": 884.393,
-                    "duration_game": 199.5,
-                    "duration_system": 156.203
+                    "duration_game": 24.9,
+                    "duration_system": 22.293
                 }
             }
         ]
@@ -83,15 +83,15 @@
         "carla_speedometer"
     ],
     "values": [
-        "58.637844",
-        "65.74",
-        "0.891966",
+        "5.172719",
+        "10.24",
+        "0.505148",
         "0.0",
         "0.0",
         "0.0",
         "0.0",
         "0.0",
-        "0.063",
+        "0.045",
         "0.0",
         "0.0",
         "0.0",

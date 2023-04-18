@@ -11,5 +11,6 @@
 		[255, 0, 0, 255]
 	],
 	"height": 35,
-	"debug_local": true
+	"debug_local": true,
+	"only_next": true
 }

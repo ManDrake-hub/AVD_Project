@@ -47,6 +47,8 @@ class GlobalRoutePlanner(object):
         This method returns list of (carla.Waypoint, RoadOption)
         from origin to destination
         """
+        # TODO: questo è il problema, il behavior chiama il trace route che poi passa al local
+        # che lo usa per la sua gestione di waypoint
         route_trace = []
         route = self._path_search(origin, destination)
         current_waypoint = self._wmap.get_waypoint(origin)

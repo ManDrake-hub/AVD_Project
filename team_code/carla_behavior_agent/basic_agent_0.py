@@ -33,7 +33,6 @@ class BasicAgent(object):
     as well as to change its parameters in case a different driving mode is desired.
     """
 
-    # TODO: add index associated with agent
     def __init__(self, vehicle, opt_dict={}, map_inst=None, grp_inst=None):
         """
         Initialization the agent paramters, the local and the global planner.
@@ -181,6 +180,10 @@ class BasicAgent(object):
             :param stop_waypoint_creation: stops the automatic random creation of waypoints
             :param clean_queue: resets the current agent's plan
         """
+        # TODO: this is called by basic_autonomous_agent and is the one responsible for the
+        # incorrect waypoints generated initially. It also uses default values for stop_waypoint_creation
+        # and clean_queue
+        # TODO: this is also called inside leaderboard_evaluator
         self._local_planner.set_global_plan(
             plan,
             stop_waypoint_creation=stop_waypoint_creation,
