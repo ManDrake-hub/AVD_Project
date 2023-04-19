@@ -12,5 +12,7 @@
 	],
 	"height": 35,
 	"debug_local": true,
-	"only_next": true
+	"only_next": true,
+	"show_plan": false,
+	"print_controller": false
 }

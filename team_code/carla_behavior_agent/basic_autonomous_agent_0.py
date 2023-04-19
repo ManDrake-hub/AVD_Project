@@ -141,8 +141,11 @@ class MyTeamAgent(AutonomousAgent):
             # TODO: this is a problem, if we draw the waypoints given to our agent,
             # they are different from the one displayed by our route_scenario
             # print(len(plan), len(self._global_plan))
-            # TODO: add this to config file
-            self.draw_waypoints(waypoints=plan)
+
+            with open("./config.json", "r") as f:
+                self.show_plan = bool(json.load(f)["show_plan"])
+            if self.show_plan:
+                self.draw_waypoints(waypoints=plan)
             ####################################################
 
             self._agent.set_global_plan(plan)

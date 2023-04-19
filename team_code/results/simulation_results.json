@@ -10,18 +10,18 @@
                 "collisions_vehicle": 0.0,
                 "red_light": 0.0,
                 "stop_infraction": 0.0,
-                "outside_route_lanes": 0.045,
+                "outside_route_lanes": 0,
                 "min_speed_infractions": 0.0,
                 "yield_emergency_vehicles_infractions": 0.0,
                 "scenario_timeouts": 0.0,
-                "route_dev": 0.0,
+                "route_dev": 24.581,
                 "vehicle_blocked": 0.0,
                 "route_timeout": 0.0
             },
             "scores_mean": {
-                "score_composed": 5.172719,
-                "score_route": 10.24,
-                "score_penalty": 0.505148
+                "score_composed": 4.6,
+                "score_route": 4.6,
+                "score_penalty": 1.0
             },
             "scores_std_dev": {
                 "score_composed": "NaN",
@@ -33,7 +33,7 @@
                     [
                         "RouteScenario_2_rep0",
                         0,
-                        "Failed"
+                        "Failed - Agent deviated from the route"
                     ]
                 ]
             }
@@ -46,7 +46,7 @@
             {
                 "index": 0,
                 "route_id": "RouteScenario_2_rep0",
-                "status": "Failed",
+                "status": "Failed - Agent deviated from the route",
                 "num_infractions": 1,
                 "infractions": {
                     "collisions_layout": [],
@@ -54,25 +54,25 @@
                     "collisions_vehicle": [],
                     "red_light": [],
                     "stop_infraction": [],
-                    "outside_route_lanes": [
-                        "Agent went outside its route lanes for about 44.809 meters (49.49% of the completed route)"
-                    ],
+                    "outside_route_lanes": [],
                     "min_speed_infractions": [],
                     "yield_emergency_vehicles_infractions": [],
                     "scenario_timeouts": [],
-                    "route_dev": [],
+                    "route_dev": [
+                        "Agent deviated from the route at (x=277.765, y=3812.402, z=364.61)"
+                    ],
                     "vehicle_blocked": [],
                     "route_timeout": []
                 },
                 "scores": {
-                    "score_route": 10.24,
-                    "score_penalty": 0.505148,
-                    "score_composed": 5.172719
+                    "score_route": 4.6,
+                    "score_penalty": 1.0,
+                    "score_composed": 4.6
                 },
                 "meta": {
                     "route_length": 884.393,
-                    "duration_game": 24.9,
-                    "duration_system": 22.293
+                    "duration_game": 21.45,
+                    "duration_system": 23.134
                 }
             }
         ]
@@ -83,16 +83,16 @@
         "carla_speedometer"
     ],
     "values": [
-        "5.172719",
-        "10.24",
-        "0.505148",
+        "4.6",
+        "4.6",
+        "1.0",
         "0.0",
         "0.0",
         "0.0",
         "0.0",
         "0.0",
-        "0.045",
-        "0.0",
+        "0",
+        "24.581",
         "0.0",
         "0.0",
         "0.0",

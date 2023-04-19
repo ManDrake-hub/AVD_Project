@@ -11,6 +11,7 @@ import numpy as np
 import carla
 from misc import get_speed
 import sys
+import json
 
 from math import atan2, atan, hypot
 
@@ -193,7 +194,10 @@ class StanleyLateralController():
         self._dt = dt
         self._wps = None
         self._lookahead_distance = lookahead_distance
+
         self._offset = offset
+        with open("./config.json", "r") as f:
+            self.print_controller = bool(json.load(f)["print_controller"])
 
     def run_step(self):
         """
@@ -268,23 +272,25 @@ class StanleyLateralController():
         
         # Heading error
         steering = (desired_heading-observed_heading)
+            
+        steering_error = steering
+        
+        # Stanley Control Law   
+        lateral_steering = atan(self._kv * lateral_error /
+                               (self._ks + speed_estimate))
+        steering += lateral_steering
+
+        if self.print_controller:
+            print("Current Heading: ", observed_heading, " - Desired Heading: ", desired_heading)
+            print("Heading error: ", steering_error, "Crosstrack error: ", lateral_error, "Crosstrack steering: ", lateral_steering)
+            print("Output: ", steering)
         
         # Normalization to [-pi, pi]
         while (steering<-np.pi):
             steering += 2*np.pi
         while (steering>np.pi):
             steering -= 2*np.pi
-            
-        steering_error = steering
-        
-        # Stanley Control Law   
-        steering += atan(self._kv * lateral_error /
-                               (self._ks + speed_estimate))
-        
-        # print("Current Heading: ", observed_heading, " - Desired Heading: ", desired_heading)
-        # print("Heading error: ", steering_error, "Crosstrack error: ", lateral_error)
-        # print("Output: ", steering)
-        
+
         return np.clip(steering, -1.0, 1.0)
 
     def change_parameters(self, Kv, Ks, dt):

@@ -219,7 +219,6 @@ class LocalPlanner(object):
                 new_waypoint_queue.append(wp)
             self._waypoints_queue = new_waypoint_queue
             
-
         for elem in current_plan:
             self._waypoints_queue.append(elem)
 
