@@ -86,6 +86,13 @@ class MyTeamAgent(AutonomousAgent):
         """
         return self.configs["sensors"]
 
+    def set_global_plan(self, global_plan_gps, global_plan_world_coord):
+        """
+        Set the plan (route) for the agent
+        """
+        self._global_plan_world_coord = global_plan_world_coord
+        self._global_plan = global_plan_gps
+
     def draw_waypoints(self, waypoints, vertical_shift=0.1, size=0.05, persistency=10000):
         for w in waypoints:
             wp = w[0].transform.location + carla.Location(z=vertical_shift)
@@ -127,20 +134,11 @@ class MyTeamAgent(AutonomousAgent):
 
             # TODO: this creates the plan that we are going to use
             plan = []
-            prev_wp = None
-            for transform, _ in self._global_plan_world_coord:
-                # TODO: this is different from what reported in the following comments
-                # this sets the plan by using the map waypoints, but basic_autonoums_agent
-                # extends AutonomousAgent which sets a global plan itself (that function is called by leaderboard_evaluator)
-                wp = CarlaDataProvider.get_map().get_waypoint(transform.location)
-                if prev_wp:
-                    plan.extend(self._agent.trace_route(prev_wp, wp))
-                prev_wp = wp
+            plan = [(CarlaDataProvider.get_map().get_waypoint(x[0].location), x[1]) for x in self._global_plan_world_coord]
 
             ####################################################
             # TODO: this is a problem, if we draw the waypoints given to our agent,
             # they are different from the one displayed by our route_scenario
-            # print(len(plan), len(self._global_plan))
 
             with open("./config.json", "r") as f:
                 self.show_plan = bool(json.load(f)["show_plan"])

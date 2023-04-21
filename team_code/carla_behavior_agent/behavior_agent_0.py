@@ -324,6 +324,11 @@ class BehaviorAgent(BasicAgent):
             if distance < self._behavior.braking_distance:
                 return self.emergency_stop()
 
+        # x.1: Bike avoidance
+        # Idea, we could just check if bike is in front of us or on our right, check if it is on our right side
+        # and then change _offset of local_planner (add func set_offset that also changes the offset of the controller).
+        # By setting offset to move x on the left, we can then just continue on our path
+
         # 2.2: Car following behaviors
         vehicle_state, vehicle, distance = self.collision_and_car_avoid_manager(ego_vehicle_wp)
 

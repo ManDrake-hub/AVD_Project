@@ -88,6 +88,9 @@ class RouteScenario(BasicScenario):
             config.name, ego_vehicles, config, world, debug_mode > 3, False, criteria_enable
         )
 
+    def get_new_route(self):
+        return self.route
+
     def _get_route(self, config):
         """
         Gets the route from the configuration, interpolating it to the desired density,
