@@ -51,7 +51,8 @@ class MyTeamAgent(AutonomousAgent):
         self._hero_actor = None
         # Load the color for the debug string on the vehicle
         with open("./config.json", "r") as f:
-            self.color = json.load(f)["colors"][self.index]
+            d = json.load(f)
+            self.color = d["colors"][self.index] if "colors" in d else (255, 0, 0, 255)
             self.color = carla.Color(*self.color)
 
         with open("./config.json", "r") as f:
@@ -164,9 +165,15 @@ class MyTeamAgent(AutonomousAgent):
             if len(self.configs["SaveSpeedData"]) > 0:
                 with open("./"+self.configs["SaveSpeedData"].replace(".", f"{self.index}."),"a") as fp:
                     fp.write(str(timestamp)+";"+str(input_data["Speed"][1]["speed"] * 3.6)+";"+str(self.configs["target_speed"])+"\n")
-                    fp.close()
             # TODO: Show on the vehicle, the index associated with the agent
             CarlaDataProvider.get_world().debug.draw_string(self._hero_actor.get_location(), str(self.index), color=self.color)
+
+            ################################################################
+            # Section for GA scoring system
+            ################################################################
+            with open(f"./GA_score/speed_error_{self.index}", "a") as fp:
+                fp.write(str(abs(self.configs["target_speed"] - input_data["Speed"][1]["speed"] * 3.6))+"\n")
+            ################################################################
 
             return controls
 

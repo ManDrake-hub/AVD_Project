@@ -43,7 +43,8 @@ class MyTeamAgent(AutonomousAgent):
         self.index = index
         self._hero_actor = None
         with open("./config.json", "r") as f:
-            self.color = json.load(f)["colors"][index]
+            d = json.load(f)
+            self.color = d["colors"][self.index] if "colors" in d else (255, 0, 0, 255)
             self.color = carla.Color(*self.color)
         ###########################################################################################################################
         

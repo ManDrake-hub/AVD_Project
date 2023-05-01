@@ -12,6 +12,7 @@ import random
 import numpy as np
 import carla
 import json
+import datetime
 
 # TODO: import the one with the correct index
 # from basic_agent import BasicAgent
@@ -95,6 +96,7 @@ class BehaviorAgent(BasicAgent):
         self._min_speed = 5
         self._behavior = None
         self._sampling_resolution = 4.5
+        self.vehicle = vehicle
 
         # Parameters for agent behavior
         if behavior == 'cautious':
@@ -108,7 +110,18 @@ class BehaviorAgent(BasicAgent):
 
         # Load the color for the debug string on the vehicle
         with open("./config.json", "r") as f:
-            self.color = json.load(f)["colors"][self.index]
+            d = json.load(f)
+            self.color = d["colors"][self.index] if "colors" in d else (255, 0, 0, 255)
+
+        self.finished_datetime: datetime.datetime = None
+        self.finished_timeout = 30
+
+        ################################################################
+        # Section for GA scoring system
+        ################################################################
+        with open(f"./GA_score/reached_end_{self.index}", "w") as fp:
+            fp.write(str(False))
+        ################################################################
 
     def _update_information(self):
         """
@@ -193,6 +206,9 @@ class BehaviorAgent(BasicAgent):
         # TODO: modified to ignore hero actor
         vehicle_list = [v for v in vehicle_list if dist(v) < 45 and v.id != self._vehicle.id and (not 'role_name' in v.attributes or ('role_name' in v.attributes and not 'hero' in v.attributes['role_name']))]
 
+        if not vehicle_list:
+            return False, None, 0
+
         if self._direction == RoadOption.CHANGELANELEFT:
             vehicle_state, vehicle, distance = self._vehicle_obstacle_detected(
                 vehicle_list, max(
@@ -229,6 +245,9 @@ class BehaviorAgent(BasicAgent):
         walker_list = self._world.get_actors().filter("*walker.pedestrian*")
         def dist(w): return w.get_location().distance(waypoint.transform.location)
         walker_list = [w for w in walker_list if dist(w) < 10]
+
+        if not walker_list:
+            return False, None, 0
 
         if self._direction == RoadOption.CHANGELANELEFT:
             walker_state, walker, distance = self._vehicle_obstacle_detected(walker_list, max(
@@ -303,6 +322,27 @@ class BehaviorAgent(BasicAgent):
 
         ego_vehicle_loc = self._vehicle.get_location()
         ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
+
+        parked = [x for x in self._world.get_level_bbs(carla.CityObjectLabel.Any)]
+        parked = [x for x in parked if x.location.distance(ego_vehicle_loc) < 3]
+        print("\nParked: ", len(parked), "Props: ", len(self._world.get_actors().filter("*static.prop*")))
+
+        # 0: Finished track
+        if self._incoming_waypoint is None:
+            if self.finished_datetime is None:
+                self.finished_datetime = datetime.datetime.now()
+                ################################################################
+                # Section for GA scoring system
+                ################################################################
+                with open(f"./GA_score/reached_end_{self.index}", "w") as fp:
+                    fp.write(str(False))
+                ################################################################
+            elif (datetime.datetime.now() - self.finished_datetime) > datetime.timedelta(seconds=self.finished_timeout):
+                raise Exception("Timeout reached")
+            return self.emergency_stop()
+
+        # Check distance from route
+        # draw_string(self._world, ego_vehicle_loc, )
 
         # 1: Red lights and stops behavior
         if self.traffic_light_manager():

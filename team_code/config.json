@@ -1,18 +1,8 @@
 {
 	"n_vehicles": 1,
-	"vehicles": 
-	[
-		"vehicle.lincoln.mkz_2020",
-		"vehicle.lincoln.mkz_2020"
-	],
-	"colors": 
-	[
-		[255, 0, 0, 255],
-		[255, 0, 0, 255]
-	],
-	"height": 35,
-	"debug_local": true,
-	"only_next": true,
-	"show_plan": true,
+	"height": 20,
+	"debug_local": false,
+	"only_next": false,
+	"show_plan": false,
 	"print_controller": false
 }

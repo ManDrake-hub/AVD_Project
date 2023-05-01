@@ -363,6 +363,7 @@ class RouteScenario(BasicScenario):
             behavior.add_child(scenario_triggerer)  # Tick the ScenarioTriggerer before the scenarios
 
         # Add the Background Activity
+        # TODO: traffic
         behavior.add_child(BackgroundBehavior(self.ego_vehicles, self.route, name="BackgroundActivity"))
 
         behavior.add_children(scenario_behaviors)

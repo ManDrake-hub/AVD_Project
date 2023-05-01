@@ -250,6 +250,8 @@ class StanleyLateralController():
         ce_idx = self._get_lookahead_index(ego_loc,self._lookahead_distance)
         desired_x = self._wps[ce_idx][0].transform.location.x
         desired_y = self._wps[ce_idx][0].transform.location.y
+
+        # Manage offset
         
         # Get Target Heading
         if ce_idx < len(self._wps)-1:

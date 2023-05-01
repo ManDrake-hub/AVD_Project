@@ -13,6 +13,7 @@ import carla
 from controller import VehicleController
 from misc import draw_waypoints, get_speed
 import json
+import math
 
 
 class RoadOption(IntEnum):
@@ -93,7 +94,7 @@ class LocalPlanner(object):
         self.index = int(__file__.replace(".py", "").split("_")[-1])
         with open("./config.json", "r") as f:
             d = json.load(f)
-            self.color = d["colors"][self.index]
+            self.color = d["colors"][self.index] if "colors" in d else (255, 0, 0, 255)
             self.only_next = bool(d["only_next"])
 
         # Overload parameters
@@ -272,6 +273,16 @@ class LocalPlanner(object):
             control.manual_gear_shift = False
         else:
             self.target_waypoint, self.target_road_option = self._waypoints_queue[0]
+
+            ################################################################
+            # Section for GA scoring system
+            ################################################################
+            with open(f"./GA_score/position_error_{self.index}", "a") as fp:
+                target_loc = self.target_waypoint.transform.location
+                error = math.sqrt((target_loc.x - veh_location.x)**2 + (target_loc.y - veh_location.y)**2)
+                fp.write(str(error)+"\n")
+            ################################################################
+
             control = self._vehicle_controller.run_step(self._target_speed, self.target_waypoint)
 
         if debug:
