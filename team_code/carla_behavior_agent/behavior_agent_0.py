@@ -13,6 +13,7 @@ import numpy as np
 import carla
 import json
 import datetime
+import misc
 
 # TODO: import the one with the correct index
 # from basic_agent import BasicAgent
@@ -190,7 +191,7 @@ class BehaviorAgent(BasicAgent):
                     self.set_destination(end_waypoint.transform.location,
                                          left_wpt.transform.location)
 
-    def collision_and_car_avoid_manager(self, waypoint):
+    def collision_and_car_avoid_manager(self, waypoint, vehicle_list):
         """
         This module is in charge of warning in case of a collision
         and managing possible tailgating chances.
@@ -201,7 +202,6 @@ class BehaviorAgent(BasicAgent):
             :return vehicle: nearby vehicle
             :return distance: distance to nearby vehicle
         """
-        vehicle_list = self._world.get_actors().filter("*vehicle*")
         def dist(v): return v.get_location().distance(waypoint.transform.location)
         # TODO: modified to ignore hero actor
         vehicle_list = [v for v in vehicle_list if dist(v) < 45 and v.id != self._vehicle.id and (not 'role_name' in v.attributes or ('role_name' in v.attributes and not 'hero' in v.attributes['role_name']))]
@@ -307,6 +307,32 @@ class BehaviorAgent(BasicAgent):
     def print_state(self, state: str, line: int):
         draw_string(self._world, self._vehicle.get_location() - carla.Location(x=(line+1)*0.75), state, self.color)
 
+    def get_sensors(self, ego_vehicle_loc, ego_vehicle_transform, vehicle_list, sensors, max_distance=30):
+        # sensors: [ (id, range, angle_min, angle_max) ]
+        # out:     {sensor_id: {"active", "distances", "angles", "speed_deltas"}}
+
+        def dist(v): return v.get_location().distance(ego_vehicle_loc)
+        vehicles = [(x, misc.compute_magnitude_angle(x.get_location(), ego_vehicle_loc, ego_vehicle_transform.rotation.yaw)) for x in vehicle_list 
+                    if dist(x) < max_distance and 
+                    (not 'role_name' in x.attributes or ('role_name' in x.attributes and not 'hero' in x.attributes['role_name']))]
+        
+        vehicles.sort(key=lambda x: x[1][0])
+        sensors_result = {}
+        for sensor in sensors:
+            sensor_id, sensor_range, sensor_angle_min, sensor_angle_max = sensor
+            sensors_result[sensor_id] = {"active": False, "distances": [], "angles": [], "speed_deltas": []}
+            for v in vehicles:
+                vehicle, distance_angle = v
+                distance, angle = distance_angle
+                if (distance <= sensor_range and sensor_angle_min < angle < sensor_angle_max):
+                    if len(sensors_result[sensor_id]["distances"]) >= 2:
+                        break
+                    sensors_result[sensor_id]["active"] = True
+                    sensors_result[sensor_id]["distances"].append(distance / sensor_range)
+                    sensors_result[sensor_id]["angles"].append((angle - sensor_angle_min) / (sensor_angle_max - sensor_angle_min))
+                    sensors_result[sensor_id]["speed_deltas"].append((vehicle.get_velocity().length() / self._vehicle.get_velocity().length()) - 1.0)
+        return sensors_result
+
     def run_step(self, debug=False):
         """
         Execute one step of navigation.
@@ -321,11 +347,23 @@ class BehaviorAgent(BasicAgent):
             self._behavior.tailgate_counter -= 1
 
         ego_vehicle_loc = self._vehicle.get_location()
+        ego_vehicle_transform = self._vehicle.get_transform()
         ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
 
-        parked = [x for x in self._world.get_level_bbs(carla.CityObjectLabel.Any)]
-        parked = [x for x in parked if x.location.distance(ego_vehicle_loc) < 3]
-        print("\nParked: ", len(parked), "Props: ", len(self._world.get_actors().filter("*static.prop*")))
+        # parked = [x for x in self._world.get_level_bbs(carla.CityObjectLabel.Any)]
+        # parked = [x for x in parked if x.location.distance(ego_vehicle_loc) < 3]
+        # print("\nParked: ", len(parked), "Props: ", len(self._world.get_actors().filter("*static.prop*")))
+
+        # vehicle_list = self._world.get_actors().filter("*vehicle*")
+        # def dist(v): return v.get_location().distance(ego_vehicle_loc)
+        # print([misc.compute_magnitude_angle(x.get_location(), ego_vehicle_loc, ego_vehicle_transform.rotation.yaw) for x in vehicle_list if dist(x) < 15 and (not 'role_name' in x.attributes or ('role_name' in x.attributes and not 'hero' in x.attributes['role_name']))])
+
+        # uvector = ego_vehicle_transform.get_forward_vector()
+        # uvector = carla.Vector2D(uvector.x, uvector.y).make_unit_vector()
+        # print(uvector.x, uvector.y)
+        vehicle_list = self._world.get_actors().filter("*vehicle*")
+        sensors = self.get_sensors(ego_vehicle_loc, ego_vehicle_transform, vehicle_list, 
+                                   sensors=[("front", 15, 0, 45), ])
 
         # 0: Finished track
         if self._incoming_waypoint is None:
@@ -370,7 +408,7 @@ class BehaviorAgent(BasicAgent):
         # By setting offset to move x on the left, we can then just continue on our path
 
         # 2.2: Car following behaviors
-        vehicle_state, vehicle, distance = self.collision_and_car_avoid_manager(ego_vehicle_wp)
+        vehicle_state, vehicle, distance = self.collision_and_car_avoid_manager(ego_vehicle_wp, vehicle_list)
 
         if vehicle_state:
             self.print_state("Vehicle state", 0)
@@ -393,7 +431,7 @@ class BehaviorAgent(BasicAgent):
                 self._behavior.max_speed,
                 self._speed_limit - 5])
             self._local_planner.set_speed(target_speed)
-            control = self._local_planner.run_step(debug=debug)
+            control = self._local_planner.run_step( debug=debug)
 
         # 4: Normal behavior
         else:

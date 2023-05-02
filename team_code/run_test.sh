@@ -1,6 +1,6 @@
 #!/bin/bash
-export ROUTES=./routes_avddiem_exam.xml
-# export ROUTES=./route_controlling.xml
+# export ROUTES=./routes_avddiem_exam.xml
+export ROUTES=./route_controlling.xml
 # export ROUTES=./second_scenario.xml
 # export ROUTES=./test.xml
 export REPETITIONS=1

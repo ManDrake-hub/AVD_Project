@@ -1,6 +1,6 @@
 {
 	"n_vehicles": 1,
-	"height": 20,
+	"height": 25,
 	"debug_local": false,
 	"only_next": false,
 	"show_plan": false,

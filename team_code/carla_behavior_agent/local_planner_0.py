@@ -226,6 +226,9 @@ class LocalPlanner(object):
         self._stop_waypoint_creation = stop_waypoint_creation
         self._vehicle_controller.setWaypoints(self._waypoints_queue)
 
+    def set_offset(self, offset):
+        self._vehicle_controller.set_stanley_offset(offset)
+
     def run_step(self, debug=False):
         """
         Execute one step of local planning which involves running the longitudinal and lateral PID controllers to
@@ -282,7 +285,6 @@ class LocalPlanner(object):
                 error = math.sqrt((target_loc.x - veh_location.x)**2 + (target_loc.y - veh_location.y)**2)
                 fp.write(str(error)+"\n")
             ################################################################
-
             control = self._vehicle_controller.run_step(self._target_speed, self.target_waypoint)
 
         if debug:
