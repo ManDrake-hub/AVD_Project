@@ -87,8 +87,8 @@ class LocalPlanner(object):
         self._max_brake = 0.3
         self._max_steer = 0.8
         self._offset = 0
-        self._base_min_distance = 3.0
-        self._distance_ratio = 0.5
+        self._base_min_distance = 2 # TODO: changed 3.0
+        self._distance_ratio = 0 # TODO: changed 0.5
         self._follow_speed_limits = False
 
         # TODO: load colors
@@ -286,7 +286,6 @@ class LocalPlanner(object):
                 error = math.sqrt((target_loc.x - veh_location.x)**2 + (target_loc.y - veh_location.y)**2)
                 fp.write(str(error)+"\n")
             ################################################################
-
             control = self._vehicle_controller.run_step(self._target_speed, self.target_waypoint)
 
         if debug:

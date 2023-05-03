@@ -15,6 +15,8 @@ import json
 import datetime
 import misc
 import utils_sensors
+from pynput import keyboard
+import time
 
 # TODO: import the one with the correct index
 # from basic_agent import BasicAgent
@@ -118,6 +120,7 @@ class BehaviorAgent(BasicAgent):
         self.finished_datetime: datetime.datetime = None
         self.finished_timeout = 30
         self.prev_offset = 0.0
+        self.time_step = 0.05 # 20Hz
 
         ################################################################
         # Section for GA scoring system
@@ -125,6 +128,17 @@ class BehaviorAgent(BasicAgent):
         with open(f"./GA_score/reached_end_{self.index}", "w") as fp:
             fp.write(str(False))
         ################################################################
+        self.slow_down = False
+        listener = keyboard.Listener(on_press=self.on_press)
+        listener.start()
+
+    def on_press(self, key):
+        try:
+            if key.char == "p":
+                self.slow_down = not self.slow_down
+                return
+        except Exception as e:
+            pass
 
     def _update_information(self):
         """
@@ -309,6 +323,37 @@ class BehaviorAgent(BasicAgent):
     def print_state(self, state: str, line: int):
         draw_string(self._world, self._vehicle.get_location() - carla.Location(x=(line+1)*0.75), state, self.color)
 
+    def predict_locations(self, vehicle_list, step):
+        location_list = []
+        for vehicle in vehicle_list:
+            loc = vehicle.get_location()
+            vel = vehicle.get_velocity()
+            acc = vehicle.get_acceleration()
+            t = step * self.time_step
+            loc_pred = carla.Location(x=loc.x + vel.x * t + acc.x * t**2, 
+                                        y=loc.y + vel.y * t + acc.y * t**2, 
+                                        z=loc.z)
+            location_list.append((vehicle, loc_pred))
+        return location_list
+    
+    def predict_ego_data(self, prev_offset, step):
+        ego_wp, _ = self._local_planner.get_incoming_waypoint_and_direction(step)
+
+        ego_transform_pred = ego_wp.transform
+        # ego_transform_pred.rotation.yaw = -ego_transform_pred.rotation.yaw
+        ego_loc_pred = ego_transform_pred.location
+
+        # Displace the wp to the side
+        r_vec = ego_transform_pred.get_right_vector()
+        offset_x = prev_offset*r_vec.x
+        offset_y = prev_offset*r_vec.y
+        print("prev", prev_offset)
+
+        ego_loc_pred = carla.Location(x=ego_loc_pred.x + offset_x, 
+                                        y=ego_loc_pred.y + offset_y, 
+                                        z=ego_loc_pred.z)
+        return ego_transform_pred, ego_loc_pred
+
     def run_step(self, debug=False):
         """
         Execute one step of navigation.
@@ -316,6 +361,9 @@ class BehaviorAgent(BasicAgent):
             :param debug: boolean for debugging
             :return control: carla.VehicleControl
         """
+        if self.slow_down:
+            time.sleep(1)
+
         self._update_information()
 
         control = None
@@ -353,44 +401,48 @@ class BehaviorAgent(BasicAgent):
         time_step = 0.05 # 20Hz
         # def get_sensors_locations(ego_vehicle_location, ego_vehicle_transform, location_list, sensors, max_distance=60):
 
-        sensors = [("left", 0, 5, 10, 170), ("right", 0, 5, -170, -10), ("front", 0, 10, -5, 5)]
+        # ego_transform_pred, ego_loc_pred = self.predict_ego_data(0)
+        # print(ego_vehicle_transform.rotation.yaw, ego_transform_pred.rotation.yaw)
+
+        sensors = [("right", 0, 5, 10, 170), ("left", 0, 5, -165, -15), ("front", 0, 5, -10, 10)]
         offsets = []
-        for step in range(1, 7):
-            ego_wp, _ = self._local_planner.get_incoming_waypoint_and_direction(step)
+        _prev_offset = self.prev_offset
+        target_speed = min([
+            self._behavior.max_speed,
+            self._speed_limit - self._behavior.speed_lim_dist])
+        speed = target_speed
+        print("#######################################################")
+        for step in range(-1, 7):
+            ego_transform_pred, ego_loc_pred = ego_vehicle_transform, ego_vehicle_loc
+            location_list = self.predict_locations(vehicle_list, step)
+            if step != -1:
+                ego_transform_pred, ego_loc_pred = self.predict_ego_data(_prev_offset, step)
+                location_list = [(x, x.get_location()) for x in vehicle_list]
 
-            location_list = []
-            for vehicle in vehicle_list:
-                loc = vehicle.get_location()
-                vel = vehicle.get_velocity()
-                loc_pred = carla.Location(x=loc.x + vel.x * step * time_step, 
-                                          y=loc.y + vel.y * step * time_step, 
-                                          z=loc.z)
-                location_list.append((vehicle, loc_pred))
-
-            ego_transform_pred = ego_wp.transform
-            ego_loc_pred = ego_transform_pred.location
-
-            # Displace the wp to the side
-            r_vec = ego_transform_pred.get_right_vector()
-            offset_x = self.prev_offset*r_vec.x
-            offset_y = self.prev_offset*r_vec.y
-
-            ego_loc_pred = carla.Location(x=ego_loc_pred.x + offset_x, 
-                                          y=ego_loc_pred.y + offset_y, 
-                                          z=ego_loc_pred.z)
+            draw_point(self._world, ego_loc_pred, color=(255, 0, 0, 255) if not step == -1 else (0, 0, 255, 255), life_time=-1)
             sensors_result = utils_sensors.get_sensors_locations(ego_loc_pred, ego_transform_pred, location_list, sensors)
-            
+
             if sensors_result["left"]:
-                offset = -0.5
-            elif sensors_result["front"] or sensors_result["right"]:
-                offset = 1.5
+                offset = 0.35
+                if sensors_result["right"] or sensors_result["front"]:
+                    speed = 0
+            elif sensors_result["right"]:
+                offset = -1.75
+            elif sensors_result["front"]:
+                offset = -1.75
             else:
                 offset = 0.0
+            _prev_offset = offset
             offsets.append(offset)
 
-        offset_final = np.average(np.array(offsets), weights=[1.0, 0.9, 0.8, 0.7, 0.6, 0.5])
+        offset_final = misc.exponential_weighted_average(offsets, 0.3)
+        print(offset_final)
         self.prev_offset = offset_final
         self._local_planner.set_offset(offset_final)
+        self._local_planner.set_speed(speed)
+
+        control = self._local_planner.run_step(debug=debug)
+        return control
         ################################################################
 
         ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)

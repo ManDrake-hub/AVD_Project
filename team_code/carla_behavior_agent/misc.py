@@ -28,7 +28,6 @@ def draw_waypoints(world, waypoints, z=0.5, color=(255, 0, 0, 255), lifetime=1.0
         _color = carla.Color(*color)
         world.debug.draw_arrow(begin, end, arrow_size=0.3, life_time=lifetime, color=_color)
 
-
 def get_speed(vehicle):
     """
     Compute speed of a vehicle in Km/h.
@@ -138,6 +137,31 @@ def compute_magnitude_angle(target_location, current_location, orientation):
     d_angle = math.degrees(math.acos(np.clip(np.dot(forward_vector, target_vector) / norm_target, -1., 1.)))
 
     return (norm_target, d_angle)
+
+"""
+If you increase the alpha value, the algorithm will place more weight on the current data point and less weight on the previous exponential weighted average value. This means that the resulting exponential weighted average will be more responsive to recent changes in the data, and will adapt more quickly to new trends.
+
+Conversely, if you decrease the alpha value, the algorithm will place more weight on the previous exponential weighted average value and less weight on the current data point. This means that the resulting exponential weighted average will be more stable and less responsive to recent changes in the data, and will adapt more slowly to new trends.
+
+It is important to choose an appropriate alpha value based on the nature of the data you are analyzing and the goals of your analysis. A higher alpha value may be appropriate if you want to be more reactive to recent changes in the data, but it may also make the resulting exponential weighted average more volatile. A lower alpha value may be appropriate if you want a smoother, more stable exponential weighted average, but it may also make the algorithm less responsive to new trends.
+"""
+def exponential_weighted_average(data, alpha):
+    """
+    Calculate the exponential weighted average of a list of floats.
+
+    Args:
+        data: A list of floats.
+        alpha: The weighting factor between 0 and 1.
+
+    Returns:
+        A list of floats representing the exponential weighted average of the input data.
+    """
+    ewa = []
+    prev_ewa = data[0]
+    for i in range(len(data)):
+        ewa.append(alpha * data[i] + (1 - alpha) * prev_ewa)
+        prev_ewa = ewa[i]
+    return ewa[-1]
 
 def distance_vehicle(waypoint, vehicle_transform):
     """
