@@ -135,8 +135,8 @@ def get_sensors(ego_vehicle, vehicle_list, sensors, max_distance=60):
     """
         :param ego_vehicle: ego vehicle
         :param vehicle_list: list of actors (not limited to vehicles)
-        :param sensors: list of tuples formatted as (id, range_min, range_max, angle_min, angle_max)
-        :return: a List containing a tuple (actor, distance, angle)
+        :param sensors: list of tuples formatted as (sensor_id: str, range_min: float, range_max: float, angle_min: float, angle_max: float)
+        :return: a dict with sensor_id as key and list of tuples formatted as (actor, distance, angle) as values
     """
     ego_vehicle_loc = ego_vehicle.get_location()
     ego_vehicle_transform = ego_vehicle.get_transform()
