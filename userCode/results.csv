@@ -1,0 +1,15 @@
+ ,Global_record,RouteScenario_0_rep0,RouteScenario_1_rep0,RouteScenario_2_rep0,RouteScenario_3_rep0,RouteScenario_4_rep0
+status,Failed,Completed,Failed - Agent timed out,Failed - Agent got blocked,Failed - Agent deviated from the route,Failed - Agent got blocked
+num_infractions,,23,5,1,1,4
+collisions_layout,11.77%,2,2,,,
+collisions_pedestrian,5.88%,2,,,,
+collisions_vehicle,35.30%,10,1,,,1
+red_light,0.00%,,,,,
+stop_infraction,2.94%,1,,,,
+outside_route_lanes,0.00%,,,,,
+min_speed_infractions,11.77%,3,,,,1
+yield_emergency_vehicles_infractions,0.00%,,,,,
+scenario_timeouts,20.60%,5,1,,,1
+route_dev,2.94%,,,,"Agent deviated from the route at (x=465.524, y=4485.719, z=370.326)",
+vehicle_blocked,5.88%,,,"Agent got blocked at (x=255.333, y=3808.387, z=363.823)",,"Agent got blocked at (x=3710.641, y=2383.847, z=359.966)"
+route_timeout,2.94%,,Route timeout.,,,
