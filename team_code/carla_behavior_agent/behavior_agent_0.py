@@ -307,32 +307,6 @@ class BehaviorAgent(BasicAgent):
     def print_state(self, state: str, line: int):
         draw_string(self._world, self._vehicle.get_location() - carla.Location(x=(line+1)*0.75), state, self.color)
 
-    def get_sensors(self, ego_vehicle_loc, ego_vehicle_transform, vehicle_list, sensors, max_distance=30):
-        # sensors: [ (id, range, angle_min, angle_max) ]
-        # out:     {sensor_id: {"active", "distances", "angles", "speed_deltas"}}
-
-        def dist(v): return v.get_location().distance(ego_vehicle_loc)
-        vehicles = [(x, misc.compute_magnitude_angle(x.get_location(), ego_vehicle_loc, ego_vehicle_transform.rotation.yaw)) for x in vehicle_list 
-                    if dist(x) < max_distance and 
-                    (not 'role_name' in x.attributes or ('role_name' in x.attributes and not 'hero' in x.attributes['role_name']))]
-        
-        vehicles.sort(key=lambda x: x[1][0])
-        sensors_result = {}
-        for sensor in sensors:
-            sensor_id, sensor_range, sensor_angle_min, sensor_angle_max = sensor
-            sensors_result[sensor_id] = {"active": False, "distances": [], "angles": [], "speed_deltas": []}
-            for v in vehicles:
-                vehicle, distance_angle = v
-                distance, angle = distance_angle
-                if (distance <= sensor_range and sensor_angle_min < angle < sensor_angle_max):
-                    if len(sensors_result[sensor_id]["distances"]) >= 2:
-                        break
-                    sensors_result[sensor_id]["active"] = True
-                    sensors_result[sensor_id]["distances"].append(distance / sensor_range)
-                    sensors_result[sensor_id]["angles"].append((angle - sensor_angle_min) / (sensor_angle_max - sensor_angle_min))
-                    sensors_result[sensor_id]["speed_deltas"].append((vehicle.get_velocity().length() / self._vehicle.get_velocity().length()) - 1.0)
-        return sensors_result
-
     def run_step(self, debug=False):
         """
         Execute one step of navigation.
@@ -361,9 +335,7 @@ class BehaviorAgent(BasicAgent):
         # uvector = ego_vehicle_transform.get_forward_vector()
         # uvector = carla.Vector2D(uvector.x, uvector.y).make_unit_vector()
         # print(uvector.x, uvector.y)
-        vehicle_list = self._world.get_actors().filter("*vehicle*")
-        sensors = self.get_sensors(ego_vehicle_loc, ego_vehicle_transform, vehicle_list, 
-                                   sensors=[("front", 15, 0, 45), ])
+        # TODO: valuta passare la vehicle list alla planner
 
         # 0: Finished track
         if self._incoming_waypoint is None:
