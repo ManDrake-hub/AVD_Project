@@ -227,6 +227,9 @@ class LocalPlanner(object):
         self._stop_waypoint_creation = stop_waypoint_creation
         self._vehicle_controller.setWaypoints(self._waypoints_queue)
 
+    def set_offset(self, offset):
+        self._vehicle_controller.set_stanley_offset(offset)
+
     def run_step(self, debug=False):
         """
         Execute one step of local planning which involves running the longitudinal and lateral PID controllers to
@@ -282,25 +285,6 @@ class LocalPlanner(object):
                 target_loc = self.target_waypoint.transform.location
                 error = math.sqrt((target_loc.x - veh_location.x)**2 + (target_loc.y - veh_location.y)**2)
                 fp.write(str(error)+"\n")
-            ################################################################
-
-            ################################################################
-            # Obstacle Management
-            ################################################################
-            ego_vehicle_loc = self._vehicle.get_location()
-            ego_vehicle_transform = self._vehicle.get_transform()
-            ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
-
-            vehicle_list = self._world.get_actors().filter("*vehicle*")
-            sensors = misc.get_sensors(self._vehicle, vehicle_list, 
-                                    sensors=[("lat", 5, -160, -20), ("lat2", 5, 20, 160), ("lat3", 10, 10, 20)])
-            
-            if sensors["lat"]["active"]:
-                self._local_planner.set_offset(-1.0)
-            elif sensors["lat3"]["active"] or sensors["lat2"]["active"]:
-                self._local_planner.set_offset(1.0)
-            else:
-                self._local_planner.set_offset(0.0)
             ################################################################
 
             control = self._vehicle_controller.run_step(self._target_speed, self.target_waypoint)

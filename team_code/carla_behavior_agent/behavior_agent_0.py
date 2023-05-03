@@ -14,6 +14,7 @@ import carla
 import json
 import datetime
 import misc
+import utils_sensors
 
 # TODO: import the one with the correct index
 # from basic_agent import BasicAgent
@@ -116,6 +117,7 @@ class BehaviorAgent(BasicAgent):
 
         self.finished_datetime: datetime.datetime = None
         self.finished_timeout = 30
+        self.prev_offset = 0.0
 
         ################################################################
         # Section for GA scoring system
@@ -320,9 +322,9 @@ class BehaviorAgent(BasicAgent):
         if self._behavior.tailgate_counter > 0:
             self._behavior.tailgate_counter -= 1
 
-        ego_vehicle_loc = self._vehicle.get_location()
-        ego_vehicle_transform = self._vehicle.get_transform()
-        ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
+        # ego_vehicle_loc = self._vehicle.get_location()
+        # ego_vehicle_transform = self._vehicle.get_transform()
+        # ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
 
         # parked = [x for x in self._world.get_level_bbs(carla.CityObjectLabel.Any)]
         # parked = [x for x in parked if x.location.distance(ego_vehicle_loc) < 3]
@@ -337,6 +339,61 @@ class BehaviorAgent(BasicAgent):
         # print(uvector.x, uvector.y)
         # TODO: valuta passare la vehicle list alla planner
 
+        # sensors = sensors.get_sensors(self._vehicle, vehicle_list, 
+        #                 sensors=[("lat", 5, -160, -20), ("lat2", 5, 20, 160), ("lat3", 10, 10, 20)])
+
+        ################################################################
+        # Obstacle Management
+        ################################################################
+        # Starting info
+        ego_vehicle_loc = self._vehicle.get_location()
+        ego_vehicle_transform = self._vehicle.get_transform()
+        ego_vehicle_velocity = self._vehicle.get_velocity()
+        vehicle_list = self._world.get_actors().filter("*vehicle*")
+        time_step = 0.05 # 20Hz
+        # def get_sensors_locations(ego_vehicle_location, ego_vehicle_transform, location_list, sensors, max_distance=60):
+
+        sensors = [("left", 0, 5, 10, 170), ("right", 0, 5, -170, -10), ("front", 0, 10, -5, 5)]
+        offsets = []
+        for step in range(1, 7):
+            ego_wp, _ = self._local_planner.get_incoming_waypoint_and_direction(step)
+
+            location_list = []
+            for vehicle in vehicle_list:
+                loc = vehicle.get_location()
+                vel = vehicle.get_velocity()
+                loc_pred = carla.Location(x=loc.x + vel.x * step * time_step, 
+                                          y=loc.y + vel.y * step * time_step, 
+                                          z=loc.z)
+                location_list.append((vehicle, loc_pred))
+
+            ego_transform_pred = ego_wp.transform
+            ego_loc_pred = ego_transform_pred.location
+
+            # Displace the wp to the side
+            r_vec = ego_transform_pred.get_right_vector()
+            offset_x = self.prev_offset*r_vec.x
+            offset_y = self.prev_offset*r_vec.y
+
+            ego_loc_pred = carla.Location(x=ego_loc_pred.x + offset_x, 
+                                          y=ego_loc_pred.y + offset_y, 
+                                          z=ego_loc_pred.z)
+            sensors_result = utils_sensors.get_sensors_locations(ego_loc_pred, ego_transform_pred, location_list, sensors)
+            
+            if sensors_result["left"]:
+                offset = -0.5
+            elif sensors_result["front"] or sensors_result["right"]:
+                offset = 1.5
+            else:
+                offset = 0.0
+            offsets.append(offset)
+
+        offset_final = np.average(np.array(offsets), weights=[1.0, 0.9, 0.8, 0.7, 0.6, 0.5])
+        self.prev_offset = offset_final
+        self._local_planner.set_offset(offset_final)
+        ################################################################
+
+        ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
         # 0: Finished track
         if self._incoming_waypoint is None:
             if self.finished_datetime is None:
