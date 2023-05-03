@@ -65,7 +65,7 @@
                 "num_infractions": 23,
                 "infractions": {
                     "collisions_layout": [
-                        "Agent collided against object with type=static.prop.trafficwarning and id=3778 at (x=-3029.928, y=3685.467, z=355.482)",
+                        "Agent100 collided against object with type=static.prop.trafficwarning and id=3778 at (x=-3029.928, y=3685.467, z=355.482)",
                         "Agent collided against object with type=static.prop.trafficwarning and id=3778 at (x=-3033.509, y=3679.42, z=355.355)"
                     ],
                     "collisions_pedestrian": [
