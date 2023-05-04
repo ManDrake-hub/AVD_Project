@@ -411,6 +411,7 @@ class BehaviorAgent(BasicAgent):
             self._behavior.max_speed,
             self._speed_limit - self._behavior.speed_lim_dist])
         speed = target_speed
+        # TODO: usa mean anche per velocità e sviluppa allo stesso modo _prev_velocity per il calcolo della ego prediction
         print("#######################################################")
         for step in range(-1, 7):
             ego_transform_pred, ego_loc_pred = ego_vehicle_transform, ego_vehicle_loc
