@@ -28,13 +28,13 @@ routes = data['_checkpoint']['records']
 for i in range(len(routes)):
     title.append(routes[i]['route_id'])
 # Status
-status = ['status']
+status = ['Status']
 global_status = data['_checkpoint']['global_record']['status']
 status.append(global_status)
 for i in range(len(routes)):
     status.append(routes[i]['status'])
 # Num infractions
-num_infractions = ['num_infractions','']
+num_infractions = ['N Infractions','']
 for i in range(len(routes)):
     num_infractions.append(routes[i]['num_infractions'])
 
