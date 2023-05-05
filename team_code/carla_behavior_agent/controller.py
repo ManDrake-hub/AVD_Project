@@ -265,11 +265,11 @@ class StanleyLateralController():
 
         # Get Target Heading
         if ce_idx < len(self._wps)-1:
-            desired_heading_x = self._wps[ce_idx+1][0].transform.location.x - desired_x
-            desired_heading_y = self._wps[ce_idx+1][0].transform.location.y - desired_y
+            desired_heading_x = (self._wps[ce_idx+1][0].transform.location.x + offset_x) - desired_x
+            desired_heading_y = (self._wps[ce_idx+1][0].transform.location.y + offset_y) - desired_y
         else:
-            desired_heading_x = desired_x - self._wps[ce_idx-1][0].transform.location.x
-            desired_heading_y = desired_y - self._wps[ce_idx-1][0].transform.location.y
+            desired_heading_x = desired_x - (self._wps[ce_idx-1][0].transform.location.x + offset_x)
+            desired_heading_y = desired_y - (self._wps[ce_idx-1][0].transform.location.y + offset_y)
 
         # Trajectory Heading
         desired_heading = atan2(desired_heading_y, desired_heading_x)
@@ -290,6 +290,7 @@ class StanleyLateralController():
         # Stanley Control Law   
         lateral_steering = atan(self._kv * lateral_error /
                                (self._ks + speed_estimate))
+        print(lateral_steering)
         steering += lateral_steering
 
         if self.print_controller:
