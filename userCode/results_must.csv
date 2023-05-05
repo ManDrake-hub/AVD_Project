@@ -1,6 +1,6 @@
  ,Global_record,RouteScenario_0_rep0,RouteScenario_1_rep0,RouteScenario_2_rep0,RouteScenario_3_rep0,RouteScenario_4_rep0
-status,Failed,Completed,Failed - Agent timed out,Completed,Completed,Completed
-num_infractions,,26,9,3,2,10
+Status,Failed,Completed,Failed - Agent timed out,Completed,Completed,Completed
+N Infractions,,26,9,3,2,10
 Coll with Layout,12.5%,3,3,,,
 Coll with Pedestrians,8.3%,2,,,,2
 Coll with Vehicles,39.6%,12,3,1,,3
