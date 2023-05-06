@@ -176,6 +176,17 @@ def distance_vehicle(waypoint, vehicle_transform):
 
     return math.sqrt(x * x + y * y)
 
+def distance_vehicle_locations(ego_location, vehicle_location):
+    """
+    Returns the 2D distance from a waypoint to a vehicle
+
+        :param waypoint: actual waypoint
+        :param vehicle_transform: transform of the target vehicle
+    """
+    x = vehicle_location.x - ego_location.x
+    y = vehicle_location.y - ego_location.y
+
+    return math.sqrt(x * x + y * y)
 
 def vector(location_1, location_2):
     """
