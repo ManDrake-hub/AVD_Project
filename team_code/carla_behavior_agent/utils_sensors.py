@@ -1,4 +1,72 @@
-from misc import compute_magnitude_angle_with_sign, is_hero
+from misc import is_hero
+import math
+import numpy as np
+import carla
+
+
+def compute_magnitude_angle_with_sign(target_location, current_location, orientation):
+    """
+    Compute relative angle and distance between a target_location and a current_location
+
+        :param target_location: location of the target object
+        :param current_location: location of the reference object
+        :param orientation: orientation of the reference object
+        :return: a tuple composed by the distance to the object and the angle between both objects
+    """
+    target_vector = np.array([target_location.x - current_location.x, target_location.y - current_location.y])
+    norm_target = np.linalg.norm(target_vector)
+    forward_vector = np.array([math.cos(math.radians(orientation)), math.sin(math.radians(orientation))])
+
+    d_angle = math.degrees(math.atan2(np.cross(forward_vector, target_vector), np.dot(forward_vector, target_vector)))
+    return (norm_target, d_angle)
+
+def get_sensors_transform(ego_vehicle_location, ego_vehicle_transform, transform_list, sensors, max_distance=60):
+    """
+        :param ego_vehicle_location: ego vehicle location
+        :param ego_vehicle_transform: ego vehicle transform
+        :param location_list: list of tuples formatted as (actor, location)
+        :param sensors: list of tuples formatted as (sensor_id: str, range_min: float, range_max: float, angle_min: float, angle_max: float)
+        :param max_distance: vehicles with greater distance than this will be ignored (can be set to None to include all vehicles)
+        :return: a dict with sensor_id as key and list of tuples formatted as (actor, distance, angle) as values
+    """
+    def _compute_info(location): return compute_magnitude_angle_with_sign(location, ego_vehicle_location, ego_vehicle_transform.rotation.yaw)
+
+    vehicles = []
+    for vehicle, transform in transform_list:
+        if is_hero(vehicle):
+            continue
+
+        # https://carla.readthedocs.io/en/0.9.5/measurements/
+        # vehicle_length_step = vehicle.bounding_box.extent.x / 4
+        vehicle_length_step = 3.0 / 4
+        locations = []
+        for step in [-1, 0, 1]:
+            r_vec = transform.get_forward_vector()
+            offset_x = step*vehicle_length_step*r_vec.x
+            offset_y = step*vehicle_length_step*r_vec.y
+
+            location = carla.Location(x=transform.location.x + offset_x, 
+                                    y=transform.location.y + offset_y, 
+                                    z=transform.location.z)
+            locations.append(location)
+        info = min([_compute_info(x) for x in locations], key=lambda x: x[0])
+        if info[0] > max_distance:
+            continue
+        vehicles.append((vehicle, *info))
+    vehicles.sort(key=lambda x: x[1])
+    return _get_sensors(sensors, vehicles)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def get_sensors(ego_vehicle_location, ego_vehicle_transform, vehicle_list, sensors, max_distance=60):
@@ -13,21 +81,6 @@ def get_sensors(ego_vehicle_location, ego_vehicle_transform, vehicle_list, senso
     def dist(v): return v.get_location().distance(ego_vehicle_location)
     vehicles = [(x, *compute_magnitude_angle_with_sign(x.get_location(), ego_vehicle_location, ego_vehicle_transform.rotation.yaw)) for x in vehicle_list 
                 if ((dist(x) < max_distance) if max_distance is not None else True) and not is_hero(x)]
-    vehicles.sort(key=lambda x: x[1])
-    return _get_sensors(sensors, vehicles)
-
-def get_sensors_locations(ego_vehicle_location, ego_vehicle_transform, location_list, sensors, max_distance=60):
-    """
-        :param ego_vehicle_location: ego vehicle location
-        :param ego_vehicle_transform: ego vehicle transform
-        :param location_list: list of tuples formatted as (actor, location)
-        :param sensors: list of tuples formatted as (sensor_id: str, range_min: float, range_max: float, angle_min: float, angle_max: float)
-        :param max_distance: vehicles with greater distance than this will be ignored (can be set to None to include all vehicles)
-        :return: a dict with sensor_id as key and list of tuples formatted as (actor, distance, angle) as values
-    """
-    def dist(location): return location.distance(ego_vehicle_location)
-    vehicles = [(vehicle, *compute_magnitude_angle_with_sign(location, ego_vehicle_location, ego_vehicle_transform.rotation.yaw)) for vehicle, location in location_list 
-                if ((dist(location) < max_distance) if max_distance is not None else True) and not is_hero(vehicle)]
     vehicles.sort(key=lambda x: x[1])
     return _get_sensors(sensors, vehicles)
 

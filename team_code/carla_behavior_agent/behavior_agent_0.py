@@ -23,6 +23,7 @@ import time
 # from local_planner import RoadOption
 BasicAgent = __import__("basic_agent_" + __file__.replace(".py", "").split("_")[-1]).BasicAgent
 RoadOption = __import__("local_planner_" + __file__.replace(".py", "").split("_")[-1]).RoadOption
+from route_manipulation import interpolate_trajectory
 
 from behavior_types import Cautious, Aggressive, Normal
 
@@ -61,7 +62,6 @@ def draw_arrow(world, location1, location2, arrow_type=DEBUG_SMALL, color=(255, 
     l_shift = carla.Location(z=v_shift)
     color = carla.Color(*color)
     world.debug.draw_arrow(location1 + l_shift, location2 + l_shift, thickness, thickness, color, life_time)
-
 
 class BehaviorAgent(BasicAgent):
     """
@@ -122,6 +122,7 @@ class BehaviorAgent(BasicAgent):
         self.prev_offset = 0.0
         self.prev_speed = 0.0
         self.time_step = 0.05 # 20Hz
+        self.step_distance = 0.5
 
         ################################################################
         # Section for GA scoring system
@@ -160,37 +161,43 @@ class BehaviorAgent(BasicAgent):
         if self._incoming_direction is None:
             self._incoming_direction = RoadOption.LANEFOLLOW
 
-    def traffic_light_manager(self):
-        """
-        This method is in charge of behaviors for red lights.
-        """
-        actor_list = self._world.get_actors()
-        lights_list = actor_list.filter("*traffic_light*")
-        affected, _ = self._affected_by_traffic_light(lights_list)
-
-        return affected
-
     def print_state(self, state: str, line: int):
         draw_string(self._world, self._vehicle.get_location() - carla.Location(x=(line+1)*0.75), state, self.color)
 
-    def predict_locations(self, vehicle_list, step):
-        location_list = []
-        for vehicle in vehicle_list:
-            loc = vehicle.get_location()
-            vel = vehicle.get_velocity()
-            acc = vehicle.get_acceleration()
-            t = step * self.time_step
-            loc_pred = carla.Location(x=loc.x + vel.x * t + acc.x * t**2, 
-                                        y=loc.y + vel.y * t + acc.y * t**2, 
-                                        z=loc.z)
-            location_list.append((vehicle, loc_pred))
-        return location_list
+    def next_locations(self, location_list):
+        location_list_next = []
+        for vehicle, loc_pred_prev in location_list:
+            vel = vehicle.get_velocity().length()
+            acc = vehicle.get_acceleration().length()
+            fw = self._map.get_waypoint(loc_pred_prev).transform.get_forward_vector()
+
+            loc_pred = carla.Location(x=loc_pred_prev.x + (fw.x*vel) * self.time_step + (fw.x*acc) * self.time_step**2, 
+                                        y=loc_pred_prev.y + (fw.y*vel) * self.time_step + (fw.y*acc) * self.time_step**2, 
+                                        z=loc_pred_prev.z)
+            location_list_next.append((vehicle, loc_pred))
+        return location_list_next
+
+    def predict_next_location(self, transform_list, time_step):
+        transform_list_next = []
+        for vehicle, transform_pred_prev in transform_list:
+            # Prendiamo un punto che sia circa due metri più avanti di noi
+            # [Questo perchè ogni ogni punto del local planner dista circa un metro l'uno dall'altro.
+            #  Non possiamo prendere direttamente quello un metro più avanti dato che non conosciamo il campionamento
+            #  di opendrive (quello che ci restituisce get_waypoint) quindi non possiamo essere sicuri che ritorni quello corretto.
+            #  Per tale motivo ne prendiamo uno di 2 metri più avanti ed utilizziamo lo stesso sistema usato dalla leaderboard per
+            #  ottenere waypoints interpolati (con risoluzione di 1 metro come la nostra ego vehicle) e scegliamo quello ad un
+            #  metro di distanza]
+            wp_current = self._map.get_waypoint(transform_pred_prev.location)
+            # wp_target = wp_current.next(2 * 1.0)
+            transform_pred = wp_current.next(1.0)[0].transform
+            # loc_pred = interpolate_trajectory((wp_current, wp_target), hop_resolution=1.0)[1].transform.location
+            transform_list_next.append((vehicle, transform_pred))
+        return transform_list_next
 
     def predict_ego_data(self, prev_offset, step):
         ego_wp, _ = self._local_planner.get_incoming_waypoint_and_direction(step)
 
         ego_transform_pred = ego_wp.transform
-        # ego_transform_pred.rotation.yaw = -ego_transform_pred.rotation.yaw
         ego_loc_pred = ego_transform_pred.location
 
         # Displace the wp to the side
@@ -211,12 +218,12 @@ class BehaviorAgent(BasicAgent):
     def get_lane(self, location):
         return self._map.get_waypoint(location, lane_type=carla.LaneType.Any).lane_id
 
-    def same_lane(self, vehicle, step):
+    def normal_lane(self, vehicle, step):
         ego_wp, _ = self._local_planner.get_incoming_waypoint_and_direction(step)
         v_loc = vehicle.get_location()
         return self.get_lane(v_loc) == self.get_lane(ego_wp.transform.location)
 
-    def opposite_lane(self, vehicle, step):
+    def overtake_lane(self, vehicle, step):
         ego_wp, _ = self._local_planner.get_incoming_waypoint_and_direction(step)
         v_loc = vehicle.get_location()
         return self.get_lane(v_loc) == -1*self.get_lane(ego_wp.transform.location)
@@ -239,121 +246,115 @@ class BehaviorAgent(BasicAgent):
             :return control: carla.VehicleControl
         """
         if self.slow_down:
-            time.sleep(2)
+            time.sleep(1.5)
 
         self._update_information()
 
-        control = None
-        if self._behavior.tailgate_counter > 0:
-            self._behavior.tailgate_counter -= 1
-
-        ################################################################
+        #############################
         # Obstacle Management
-        ################################################################
+        #############################
         # Starting info
         ego_vehicle_loc = self._vehicle.get_location()
         ego_vehicle_transform = self._vehicle.get_transform()
-        ego_vehicle_velocity = self._vehicle.get_velocity()
         vehicle_list = self._world.get_actors().filter("*vehicle*")
-
         # Aree di interesse
-        sensors = [("right", 0, 5, 10, 170), ("left", 0, 5, -160, -20), ("front", 0, 5, -5, 5), ("ahead", 0, 25, -90, 90), ("ahead_short", 0, 10, -90, 90)]
+        sensors = [("right", 0, 5, 10, 170), ("left", 0, 5, -170, -10), ("front", 0, 5, -15, 15)]
+        #############################
+
         offsets = []
         _prev_offset = self.prev_offset
         stop_overtake = False
         speed_front = None
-        speed_final = self.get_base_speed()
         
-        max_steps = 20
-        step = -1
         print("#######################################################")
+        max_steps = 30
+        step = -1
         while step < max_steps:
+
+
             #############################
-            ego_transform_pred, ego_loc_pred = ego_vehicle_transform, ego_vehicle_loc
-            location_list = self.predict_locations(vehicle_list, step)
-            if step != -1:
+            # Location prediction
+            #############################
+            if step == -1:
+                ego_transform_pred, ego_loc_pred = ego_vehicle_transform, ego_vehicle_loc
+                transform_list = [(x, x.get_transform()) for x in vehicle_list]
+            else:
                 ego_transform_pred, ego_loc_pred = self.predict_ego_data(_prev_offset, step)
-                location_list = [(x, x.get_location()) for x in vehicle_list]
+                transform_list = self.predict_next_transform(transform_list)
+
+            if self.slow_down and step == 20:
+                for vel, transform in transform_list:
+                    draw_point(self._world, transform.location, color=(0, 128, 255, 255), life_time=-1)
+            draw_point(self._world, ego_loc_pred, color=(255, 0, 0, 255) if not step == -1 else (255, 255, 0, 255), life_time=-1)
             #############################
 
-            draw_point(self._world, ego_loc_pred, color=(255, 0, 0, 255) if not step == -1 else (255, 255, 0, 255), life_time=-1)
-            sensors_result = utils_sensors.get_sensors_locations(ego_loc_pred, ego_transform_pred, location_list, sensors)
 
-            if sensors_result["left"] and (self.get_lane(self.predict_ego_data(0.0, step)[1] if step != -1 else ego_vehicle_loc) != self.get_lane([x[1] for x in location_list if x[0] == sensors_result["left"][0][0]][0])):
-                offset = max(0, 4.0 - sensors_result["left"][0][1])
+            #############################
+            # Sensor capture
+            #############################
+            sensors_result = utils_sensors.get_sensors_transform(ego_loc_pred, ego_transform_pred, transform_list, sensors)
+
+            front_overtake_lane = [x for x in sensors_result["front"] if not self.normal_lane(x[0], step)]
+            front_normal_lane = [x for x in sensors_result["front"] if self.normal_lane(x[0], step)]
+            left_overtake_lane = [x for x in sensors_result["left"] if self.overtake_lane(x[0], step)]
+            #############################
+
+
+            #############################
+            # Lane proposal
+            #############################
+            if front_overtake_lane and _prev_offset < 0:
+                print("stop overtake", step)
+                stop_overtake = True
+            elif front_normal_lane and not left_overtake_lane and not _prev_offset < 0:
+                offset = -2.0
+            elif left_overtake_lane:
+                offset = 1.0 # TODO: make it variable
             elif sensors_result["right"]:
-                offset = -2.0
-                speed_final = 45
-                # print("check", step)
-                vehicles_ahead = [x[0] for x in sensors_result["ahead"] if x[0] not in [x[0] for x in sensors_result["right"]]]
-                # print("ahead", len(vehicles_ahead))
-                vehicles_ahead_opposite = self.get_vehicles_on_opposite_lane(vehicles_ahead, step)
-                max_steps += 1
-                # for elem in location_list:
-                #     v, vloc = elem
-                #     # print(misc.compute_magnitude_angle_with_sign(vloc, ego_loc_pred, ego_transform_pred.rotation.yaw))
-                #     # if v in [x[0] for x in sensors_result["front_long"]]:# and v in [x[0] for x in sensors_result["front"]]:
-                #     draw_point(self._world, vloc, color=(255, 0, 255, 255), life_time=-1)
-
-                if len(vehicles_ahead_opposite) > 0 and not self.prev_offset < 0:
-                    stop_overtake = True
-                    print("Stop overtake at:", step)
-            elif sensors_result["front"]:
-                offset = -2.0
-                speed_final = 45
-                print("front activated", step, _prev_offset)
+                offset = -2.0 # TODO: make it variable
             else:
                 offset = 0.0
-
-            if sensors_result["ahead_short"]:
-                vehicle_front = [x[0] for x in sensors_result["ahead_short"] if not self.opposite_lane(x[0], step)]
-                if vehicle_front:
-                    vehicle_front = vehicle_front[0]
-                    if speed_front is None:
-                        speed_front = vehicle_front.get_velocity().length() if step < 7 else self.get_base_speed()
-                        print("speed is None, set to: ", speed_front, step, vehicle_front.get_velocity().length())
 
             _prev_offset = offset
             if step < 7:
                 offsets.append(offset)
+            #############################
+
+
+            #############################
+            # Speed proposal
+            #############################
+            if step < 7 and speed_front is None and front_normal_lane:
+                speed_front = front_normal_lane[0][0].get_velocity().length()
+            #############################
+
             step += 1
 
-        offset_final = misc.exponential_weighted_average(offsets, 0.45)
+        #############################
+        # Lane management
+        #############################
+        offset_final = misc.exponential_weighted_average(offsets, 0.3)
         if stop_overtake:
-            speed_final = speed_front if speed_front is not None else self.get_base_speed()
             offset_final = 0.0
-        print(offset_final, speed_final)
-        self.prev_speed = speed_final
+        #############################
+
+
+        #############################
+        # Speed management
+        #############################
+        if offset_final < 0:
+            speed_final = 45
+        elif speed_front is not None:
+            speed_final = speed_front
+        else:
+            speed_final = self.get_base_speed()
+        #############################
+
         self.prev_offset = offset_final
-
-        ###########################################
-        # Displace the wp to the side
-        r_vec = ego_vehicle_transform.get_right_vector()
-        offset_x = offset_final*r_vec.x
-        offset_y = offset_final*r_vec.y
-
-        ego_wp, _ = self._local_planner.get_incoming_waypoint_and_direction(0)
-        final_loc = ego_wp.transform.location
-        final_loc = carla.Location(x=final_loc.x+offset_x, y=final_loc.y+offset_y, z=final_loc.z)
-        draw_point(self._world, final_loc, color=(0, 0, 255, 255), life_time=-1)
-        ###########################################
 
         self._local_planner.set_offset(offset_final)
         self._local_planner.set_speed(speed_final)
 
         control = self._local_planner.run_step(debug=debug)
         return control
-        ################################################################
-
-    def emergency_stop(self):
-        """
-        Overwrites the throttle a brake values of a control to perform an emergency stop.
-        The steering is kept the same to avoid going out of the lane when stopping during turns
-
-            :param speed (carl.VehicleControl): control to be modified
-        """
-        control = carla.VehicleControl()
-        control.throttle = 0.0
-        control.brake = self._max_brake
-        control.hand_brake = False
-        return control
+        #############################
