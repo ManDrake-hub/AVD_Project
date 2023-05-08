@@ -364,6 +364,8 @@ class BehaviorAgent(BasicAgent):
 
             if step < 7:
                 for vel, location, _ in transform_list:
+                    if misc.is_hero(vel):
+                        continue
                     draw_point(self._world, location, color=(0, 128, 255, 255), life_time=self.time_step + 0.01)
             draw_point(self._world, ego_loc_pred, color=(255, 0, 0, 255) if not step == -1 else (255, 255, 0, 255), life_time=-1)
             #############################

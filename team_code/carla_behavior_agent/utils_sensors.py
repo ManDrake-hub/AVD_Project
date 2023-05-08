@@ -29,8 +29,19 @@ def get_sensors_locations_fw(ego_vehicle_location, ego_vehicle_transform, locati
         :param max_distance: vehicles with greater distance than this will be ignored (can be set to None to include all vehicles)
         :return: a dict with sensor_id as key and list of tuples formatted as (actor, distance, angle) as values
     """
-    def _compute_info(location): return compute_magnitude_angle_with_sign(location, ego_vehicle_location, ego_vehicle_transform.rotation.yaw)
+    def _compute_info(ego_location, location): return compute_magnitude_angle_with_sign(location, ego_location, ego_vehicle_transform.rotation.yaw)
     def dist(location): return location.distance(ego_vehicle_location)
+    vehicle_length_step = 3.0 / 4
+
+    ego_locs = []
+    ego_fw = ego_vehicle_transform.rotation.get_forward_vector()
+    for vehicle_step in [-1, 0, 1]:
+        offset_x = vehicle_step*vehicle_length_step*ego_fw.x
+        offset_y = vehicle_step*vehicle_length_step*ego_fw.y
+        ego_location = carla.Location(x=ego_vehicle_location.x + offset_x, 
+                                        y=ego_vehicle_location.y + offset_y, 
+                                        z=ego_vehicle_location.z)
+        ego_locs.append(ego_location)
 
     vehicles = []
     for vehicle, location, fw in location_list:
@@ -42,17 +53,17 @@ def get_sensors_locations_fw(ego_vehicle_location, ego_vehicle_transform, locati
 
         # https://carla.readthedocs.io/en/0.9.5/measurements/
         # vehicle_length_step = vehicle.bounding_box.extent.x / 4
-        vehicle_length_step = 3.0 / 4
         locations = []
-        for step in [-1, 0, 1]:
-            offset_x = step*vehicle_length_step*fw.x
-            offset_y = step*vehicle_length_step*fw.y
+        for ego_loc in ego_locs:
+            for step in [-1, 0, 1]:
+                offset_x = step*vehicle_length_step*fw.x
+                offset_y = step*vehicle_length_step*fw.y
 
-            location = carla.Location(x=location.x + offset_x, 
-                                    y=location.y + offset_y, 
-                                    z=location.z)
-            locations.append(location)
-        info = min([_compute_info(x) for x in locations], key=lambda x: x[0])
+                location = carla.Location(x=location.x + offset_x, 
+                                        y=location.y + offset_y, 
+                                        z=location.z)
+                locations.append(location)
+            info = min([_compute_info(ego_loc, x) for x in locations], key=lambda x: x[0])
         if info[0] > max_distance:
             continue
         vehicles.append((vehicle, *info))
