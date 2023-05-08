@@ -1,0 +1,19 @@
+ ,Global_record,RouteScenario_8_rep0,RouteScenario_9_rep0,RouteScenario_10_rep0,RouteScenario_11_rep0,RouteScenario_12_rep0
+Status,Failed,Failed - Agent timed out,Failed - Agent got blocked,Failed - Agent got blocked,Failed - Agent got blocked,Completed
+N Infractions,,22,7,7,5,9
+Coll with Layout,9.1%,2,,1,,1
+Coll with Pedestrians,2.3%,,,1,,
+Coll with Vehicles,40.9%,9,4,2,1,2
+Red light,0.0%,,,,,
+Stop,4.5%,1,,,1,
+Outside lanes,0.1%,,,1,1,
+Useless Decelerations,20.4%,3,,1,1,4
+Yield emergency vehicles,0.0%,,,,,
+Scenario timeouts,22.7%,6,2,,,2
+Driving score,5.897623,0.0,5.0,3.9,14.9,5.6
+Route Complention,64.432,76.3,79.2,34.6,32.1,100
+Infraction Penalty,0.139583,0.0,0.1,0.1,0.5,0.1
+Simulation time (s),,1941.0,729.5,257.2,259.4,675.3
+Route Deviation,0.0,,,,,
+Vehicle Blocked,0.54,,"Agent got blocked at (x=1271.792, y=","Agent got blocked at (x=3200.523, y=","Agent got blocked at (x=-499.997, y=",
+Route Timeout,0.18,Route timeout.,,,,

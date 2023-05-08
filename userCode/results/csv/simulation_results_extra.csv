@@ -1,0 +1,19 @@
+ ,Global_record,RouteScenario_8_rep0,RouteScenario_9_rep0,RouteScenario_10_rep0,RouteScenario_11_rep0,RouteScenario_12_rep0
+Status,Failed,Failed - Agent timed out,Completed,Completed,Completed,Completed
+N Infractions,,23,6,7,9,9
+Coll with Layout,11.5%,4,,1,,1
+Coll with Pedestrians,5.8%,,,3,,
+Coll with Vehicles,46.1%,10,5,2,4,3
+Red light,0.0%,,,,,
+Stop,5.8%,1,,,2,
+Outside lanes,0.1%,,,,,1
+Useless Decelerations,11.5%,2,,,2,2
+Yield emergency vehicles,0.0%,,,,,
+Scenario timeouts,19.2%,5,1,1,1,2
+Driving score,3.101235,0.0,5.4,2.0,4.2,3.8
+Route Complention,95.264,76.3,100,100,100,100
+Infraction Penalty,0.031018,0.0,0.1,0.0,0.0,0.0
+Simulation time (s),,1940.3,355.9,350.1,384.4,671.9
+Route Deviation,0.0,,,,,
+Vehicle Blocked,0.0,,,,,
+Route Timeout,0.15,Route timeout.,,,,

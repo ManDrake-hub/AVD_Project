@@ -16,8 +16,12 @@ infractions_dict_new = {"collisions_layout":"Coll with Layout", "collisions_pede
 score_dict_new = {"score_composed":"Driving score", "score_route":"Route Complention", "score_penalty":"Infraction Penalty", "duration_game":"Simulation time (s)"}
 shutdown_event_dict_new = {"route_dev":"Route Deviation", "vehicle_blocked":"Vehicle Blocked", "route_timeout":"Route Timeout"}
 
+file_json = 'results/simulation_results_must.json'
+file_csv = 'results/csv/simulation_results_must.csv'
+file_xlsx = 'results/xlsx/simulation_results_must.xlsx'
+
 # Load the JSON file
-with open('results/simulation_results_must.json', 'r') as f:
+with open(file_json, 'r') as f:
     data = json.load(f)
 
 # Title
@@ -98,7 +102,7 @@ for row in total_matrix:
 print(total_matrix)
 
 # CSV
-with open('results_must.csv', 'w', newline='') as f:
+with open(file_csv, 'w', newline='') as f:
     writer = csv.writer(f)
     writer.writerow(title)
     writer.writerow(status)
@@ -107,5 +111,5 @@ with open('results_must.csv', 'w', newline='') as f:
         writer.writerow(row)
 
 # CSV to xlsx
-read_file = pd.read_csv (r'results_must.csv')
-read_file.to_excel (r'results_must.xlsx', index = None, header=True)
+read_file = pd.read_csv (file_csv)
+read_file.to_excel (file_xlsx, index = None, header=True)
