@@ -17,6 +17,7 @@ import misc
 import utils_sensors
 from pynput import keyboard
 import time
+import math
 
 # TODO: import the one with the correct index
 # from basic_agent import BasicAgent
@@ -102,6 +103,8 @@ class BehaviorAgent(BasicAgent):
         self._sampling_resolution = 4.5
         self.vehicle = vehicle
 
+        self.vehicles = {}
+
         # Parameters for agent behavior
         if behavior == 'cautious':
             self._behavior = Cautious()
@@ -177,22 +180,82 @@ class BehaviorAgent(BasicAgent):
             location_list_next.append((vehicle, loc_pred))
         return location_list_next
 
-    def predict_next_location(self, transform_list, time_step):
-        transform_list_next = []
-        for vehicle, transform_pred_prev in transform_list:
-            # Prendiamo un punto che sia circa due metri più avanti di noi
-            # [Questo perchè ogni ogni punto del local planner dista circa un metro l'uno dall'altro.
-            #  Non possiamo prendere direttamente quello un metro più avanti dato che non conosciamo il campionamento
-            #  di opendrive (quello che ci restituisce get_waypoint) quindi non possiamo essere sicuri che ritorni quello corretto.
-            #  Per tale motivo ne prendiamo uno di 2 metri più avanti ed utilizziamo lo stesso sistema usato dalla leaderboard per
-            #  ottenere waypoints interpolati (con risoluzione di 1 metro come la nostra ego vehicle) e scegliamo quello ad un
-            #  metro di distanza]
-            wp_current = self._map.get_waypoint(transform_pred_prev.location)
-            # wp_target = wp_current.next(2 * 1.0)
-            transform_pred = wp_current.next(1.0)[0].transform
-            # loc_pred = interpolate_trajectory((wp_current, wp_target), hop_resolution=1.0)[1].transform.location
-            transform_list_next.append((vehicle, transform_pred))
-        return transform_list_next
+    """
+    def predict_locations(self, vehicle_list, time_step):
+        location_list = []
+        for vehicle in vehicle_list:
+            loc = vehicle.get_location()
+            vel = vehicle.get_velocity()
+            acc = vehicle.get_acceleration()
+
+            print(vel, vel.x, vel.y, vel.z)
+
+            vel_x = vel.x if abs(vel.x) > 1e-2 else 1e-2
+            vel_y = vel.y if abs(vel.y) > 1e-2 else 1e-2
+
+            x_prev = loc.x + vel_x * (time_step - time_step*0.01) + acc.x * (time_step - time_step*0.01)**2
+            x_new = loc.x + vel_x * time_step + acc.x * time_step**2
+            y_prev = loc.y + vel_y * (time_step - time_step*0.01) + acc.y * (time_step - time_step*0.01)**2
+            y_new = loc.y + vel_y * time_step + acc.y * time_step**2
+
+            loc_pred = carla.Location(x=x_new, y=y_new, z=loc.z)
+            location_list.append((vehicle, loc_pred, carla.Vector3D(x=(x_new-x_prev), y=(y_new-y_prev), z=0).make_unit_vector()))
+        return location_list
+    """
+    def get_vel_acc(self, vehicle):
+        return self.vehicles[vehicle.id][1:]
+
+    def predict_locations_unexact(self, vehicle_list, time_step):
+        location_list = []
+        for vehicle in vehicle_list:
+            loc = vehicle.get_location()
+            vel, acc = self.get_vel_acc(vehicle)
+
+            vel_x = vel.x if abs(vel.x) > 1e-2 else 1e-2
+            vel_y = vel.y if abs(vel.y) > 1e-2 else 1e-2
+
+            x_prev = loc.x + vel_x * (time_step - time_step*0.01) + acc.x * (time_step - time_step*0.01)**2
+            x_new = loc.x + vel_x * time_step + acc.x * time_step**2
+            y_prev = loc.y + vel_y * (time_step - time_step*0.01) + acc.y * (time_step - time_step*0.01)**2
+            y_new = loc.y + vel_y * time_step + acc.y * time_step**2
+
+            loc_pred = carla.Location(x=x_new, y=y_new, z=loc.z)
+            location_list.append((vehicle, loc_pred, carla.Vector3D(x=(x_new-x_prev), y=(y_new-y_prev), z=0).make_unit_vector()))
+        return location_list
+
+    def predict_locations(self, vehicle_list, time_step, max_distance=100, max_distance_wp=100, step=None):
+        def dist(location): return location.distance(self._vehicle.get_location())
+
+        location_list = []
+        for vehicle in vehicle_list:
+            loc = vehicle.get_location()
+            if dist(loc) > max_distance:
+                continue
+
+            vel, acc = self.get_vel_acc(vehicle)
+            
+            vel_x = vel.x if abs(vel.x) > 1e-2 else 1e-2
+            vel_y = vel.y if abs(vel.y) > 1e-2 else 1e-2
+
+            x_prev = vel_x * (time_step - time_step*0.01) + 0.5*acc.x * (time_step - time_step*0.01)**2
+            x_new = vel_x * time_step + 0.5*acc.x * time_step**2
+            y_prev = vel_y * (time_step - time_step*0.01) + 0.5*acc.y * (time_step - time_step*0.01)**2
+            y_new = vel_y * time_step + 0.5*acc.y * time_step**2
+
+            distance = math.sqrt((x_new**2) + (y_new**2))
+
+            if distance < max_distance_wp:
+                wp = self._map.get_waypoint(loc).next(distance)[0]
+                loc_pred = wp.transform.location
+                rot_pred = wp.transform.rotation.get_forward_vector()
+            else:
+                if step is not None and step == 7:
+                    print("unexact", time_step, vel_x, vel_y, acc.x, acc.y, distance)
+                loc_pred = carla.Location(x=x_new, y=y_new, z=loc.z)
+                rot_pred = carla.Vector3D(x=(x_new-x_prev), y=(y_new-y_prev), z=0).make_unit_vector()
+
+            location_list.append((vehicle, loc_pred, rot_pred))
+        return location_list
 
     def predict_ego_data(self, prev_offset, step):
         ego_wp, _ = self._local_planner.get_incoming_waypoint_and_direction(step)
@@ -237,6 +300,20 @@ class BehaviorAgent(BasicAgent):
             if self.get_lane(v_loc) == -1 * self.get_lane(ego_wp.transform.location):
                 vehicle_list_opposite.append(vehicle)
         return vehicle_list_opposite
+    
+    def update_vehicle(self, vehicle):
+        loc = vehicle.get_location()
+        if vehicle.id not in self.vehicles:
+            self.vehicles[vehicle.id] = (loc, carla.Vector3D(x=0.0, y=0.0, z=0.0), carla.Vector3D(x=0.0, y=0.0, z=0.0))
+        else:
+            loc_prev, velocity_prev, acc_prev = self.vehicles[vehicle.id]
+            velocity = carla.Vector3D(x=(loc.x - loc_prev.x)/self.time_step,
+                                       y=(loc.y - loc_prev.y)/self.time_step,
+                                       z=(loc.z - loc_prev.z)/self.time_step)
+            acc = carla.Vector3D(x=(velocity.x - velocity_prev.x)/self.time_step,
+                                  y=(velocity.y - velocity_prev.y)/self.time_step,
+                                  z=(velocity.z - velocity_prev.z)/self.time_step)
+            self.vehicles[vehicle.id] = (loc, velocity, acc)
 
     def run_step(self, debug=False):
         """
@@ -256,7 +333,10 @@ class BehaviorAgent(BasicAgent):
         # Starting info
         ego_vehicle_loc = self._vehicle.get_location()
         ego_vehicle_transform = self._vehicle.get_transform()
+        ego_vehicle_velocity = self._vehicle.get_velocity().length() + 0.1
         vehicle_list = self._world.get_actors().filter("*vehicle*")
+        for vehicle in vehicle_list:
+            self.update_vehicle(vehicle)
         # Aree di interesse
         sensors = [("right", 0, 5, 10, 170), ("left", 0, 5, -170, -10), ("front", 0, 5, -15, 15)]
         #############################
@@ -277,14 +357,14 @@ class BehaviorAgent(BasicAgent):
             #############################
             if step == -1:
                 ego_transform_pred, ego_loc_pred = ego_vehicle_transform, ego_vehicle_loc
-                transform_list = [(x, x.get_transform()) for x in vehicle_list]
+                transform_list = [(x, x.get_location(), x.get_transform().get_forward_vector()) for x in vehicle_list]
             else:
                 ego_transform_pred, ego_loc_pred = self.predict_ego_data(_prev_offset, step)
-                transform_list = self.predict_next_transform(transform_list)
+                transform_list = self.predict_locations(vehicle_list, (step + 1) / ego_vehicle_velocity, step=step)
 
-            if self.slow_down and step == 20:
-                for vel, transform in transform_list:
-                    draw_point(self._world, transform.location, color=(0, 128, 255, 255), life_time=-1)
+            if step < 7:
+                for vel, location, _ in transform_list:
+                    draw_point(self._world, location, color=(0, 128, 255, 255), life_time=self.time_step + 0.01)
             draw_point(self._world, ego_loc_pred, color=(255, 0, 0, 255) if not step == -1 else (255, 255, 0, 255), life_time=-1)
             #############################
 
@@ -292,7 +372,7 @@ class BehaviorAgent(BasicAgent):
             #############################
             # Sensor capture
             #############################
-            sensors_result = utils_sensors.get_sensors_transform(ego_loc_pred, ego_transform_pred, transform_list, sensors)
+            sensors_result = utils_sensors.get_sensors_locations_fw(ego_loc_pred, ego_transform_pred, transform_list, sensors, max_distance=20)
 
             front_overtake_lane = [x for x in sensors_result["front"] if not self.normal_lane(x[0], step)]
             front_normal_lane = [x for x in sensors_result["front"] if self.normal_lane(x[0], step)]
@@ -306,6 +386,7 @@ class BehaviorAgent(BasicAgent):
             if front_overtake_lane and _prev_offset < 0:
                 print("stop overtake", step)
                 stop_overtake = True
+                offset = 0.0
             elif front_normal_lane and not left_overtake_lane and not _prev_offset < 0:
                 offset = -2.0
             elif left_overtake_lane:
@@ -325,7 +406,7 @@ class BehaviorAgent(BasicAgent):
             # Speed proposal
             #############################
             if step < 7 and speed_front is None and front_normal_lane:
-                speed_front = front_normal_lane[0][0].get_velocity().length()
+                speed_front = self.get_vel_acc(front_normal_lane[0][0])[1].length()
             #############################
 
             step += 1
