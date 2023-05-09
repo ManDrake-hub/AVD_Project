@@ -20,6 +20,8 @@ def compute_magnitude_angle_with_sign(target_location, current_location, orienta
     d_angle = math.degrees(math.atan2(np.cross(forward_vector, target_vector), np.dot(forward_vector, target_vector)))
     return (norm_target, d_angle)
 
+# TODO: fare in modo che aggiungiamo al sensore in base ad uno dei qualsiasi punti che approssimano la macchina
+
 def get_sensors_locations_fw(ego_vehicle_location, ego_vehicle_transform, location_list, sensors, max_distance=60):
     """
         :param ego_vehicle_location: ego vehicle location
@@ -31,7 +33,7 @@ def get_sensors_locations_fw(ego_vehicle_location, ego_vehicle_transform, locati
     """
     def _compute_info(ego_location, location): return compute_magnitude_angle_with_sign(location, ego_location, ego_vehicle_transform.rotation.yaw)
     def dist(location): return location.distance(ego_vehicle_location)
-    vehicle_length_step = 3.0 / 4
+    vehicle_length_step = 4.0 / 4
 
     ego_locs = []
     ego_fw = ego_vehicle_transform.rotation.get_forward_vector()
