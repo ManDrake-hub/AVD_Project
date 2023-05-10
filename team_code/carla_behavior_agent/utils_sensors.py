@@ -65,10 +65,9 @@ def get_sensors_locations_fw(ego_vehicle_location, ego_vehicle_transform, locati
                                         y=location.y + offset_y, 
                                         z=location.z)
                 locations.append(location)
-            info = min([_compute_info(ego_loc, x) for x in locations], key=lambda x: x[0])
-        if info[0] > max_distance:
-            continue
-        vehicles.append((vehicle, *info))
+            infos = [_compute_info(ego_loc, x) for x in locations]
+        for info in infos:
+            vehicles.append((vehicle, *info))
     vehicles.sort(key=lambda x: x[1])
     return _get_sensors(sensors, vehicles)
 
