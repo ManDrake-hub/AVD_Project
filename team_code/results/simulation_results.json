@@ -19,8 +19,8 @@
                 "route_timeout": 0.0
             },
             "scores_mean": {
-                "score_composed": 32.46,
-                "score_route": 32.46,
+                "score_composed": 3.08,
+                "score_route": 3.08,
                 "score_penalty": 1.0
             },
             "scores_std_dev": {
@@ -63,14 +63,14 @@
                     "route_timeout": []
                 },
                 "scores": {
-                    "score_route": 32.46,
+                    "score_route": 3.08,
                     "score_penalty": 1.0,
-                    "score_composed": 32.46
+                    "score_composed": 3.08
                 },
                 "meta": {
                     "route_length": 4210.947,
-                    "duration_game": 206.8,
-                    "duration_system": 232.655
+                    "duration_game": 28.85,
+                    "duration_system": 61.812
                 }
             }
         ]
@@ -81,8 +81,8 @@
         "carla_speedometer"
     ],
     "values": [
-        "32.46",
-        "32.46",
+        "3.08",
+        "3.08",
         "1.0",
         "0.0",
         "0.0",

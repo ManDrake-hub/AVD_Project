@@ -18,6 +18,7 @@ import utils_sensors
 from pynput import keyboard
 import time
 import math
+from typing import List
 
 # TODO: import the one with the correct index
 # from basic_agent import BasicAgent
@@ -126,6 +127,7 @@ class BehaviorAgent(BasicAgent):
         self.prev_speed = 0.0
         self.time_step = 0.05 # 20Hz
         self.step_distance = 0.5
+        self.n_speed_prediction = 10
 
         ################################################################
         # Section for GA scoring system
@@ -203,7 +205,16 @@ class BehaviorAgent(BasicAgent):
         return location_list
     """
     def get_vel_acc(self, vehicle):
-        return self.vehicles[vehicle.id][1], 0.0
+        vel_x = sum([x.x for x in self.vehicles[vehicle.id][1]]) / self.n_speed_prediction
+        vel_y = sum([x.y for x in self.vehicles[vehicle.id][1]]) / self.n_speed_prediction
+        vel = carla.Vector3D(x=vel_x, y=vel_y, z=0)
+
+        max_speed = self._speed_limit / 3.6
+        if vel.length() > max_speed:
+            vel_x *= max_speed / vel.length()
+            vel_y *= max_speed / vel.length()
+            vel = carla.Vector3D(x=vel_x, y=vel_y, z=0)
+        return vel, 0.0
 
     def predict_locations_unexact(self, vehicle_list, time_step):
         location_list = []
@@ -243,6 +254,8 @@ class BehaviorAgent(BasicAgent):
             y_new = vel_y * time_step # + 0.5*acc.y * time_step**2
 
             distance = math.sqrt((x_new**2) + (y_new**2))
+            if distance > 250:
+                print(distance, vel_x, vel_y, time_step)
 
             if distance < max_distance_wp:
                 wp = self._map.get_waypoint(loc)
@@ -250,18 +263,22 @@ class BehaviorAgent(BasicAgent):
                 if distance < 0.3:
                     loc_pred = loc
                     rot_pred = wp.transform.rotation.get_forward_vector()
-                # offset_length = loc.distance(wp.transform.location)
-                # wp_right = wp.transform.get_right_vector()
-                wp_next = wp.next(distance)[0]
-                loc_pred = wp_next.transform.location
+                else:
+                    # offset_length = loc.distance(wp.transform.location)
+                    # wp_right = wp.transform.get_right_vector()
+                    wp_next = wp.next(distance)[0]
+                    loc_pred = wp_next.transform.location
 
-                offset_x = loc.x - wp.transform.location.x # offset_length*wp_right.x
-                offset_y = loc.y - wp.transform.location.y # offset_length*wp_right.y
-                loc_pred = carla.Location(x=loc_pred.x + offset_x, 
-                                        y=loc_pred.y + offset_y, 
-                                        z=loc_pred.z)
+                    offset_x = loc.x - wp.transform.location.x # offset_length*wp_right.x
+                    offset_y = loc.y - wp.transform.location.y # offset_length*wp_right.y
+                    loc_pred = carla.Location(x=loc_pred.x + offset_x, 
+                                            y=loc_pred.y + offset_y, 
+                                            z=loc_pred.z)
 
-                rot_pred = wp_next.transform.rotation.get_forward_vector()
+                    rot_pred = wp_next.transform.rotation.get_forward_vector()
+                    # if loc.distance(loc_pred) > 1.5*distance:
+                    #     loc_pred = carla.Location(x=x_new, y=y_new, z=loc.z)
+                    #     rot_pred = carla.Vector3D(x=(x_new-x_prev), y=(y_new-y_prev), z=0).make_unit_vector()         
             else:
                 loc_pred = carla.Location(x=x_new, y=y_new, z=loc.z)
                 rot_pred = carla.Vector3D(x=(x_new-x_prev), y=(y_new-y_prev), z=0).make_unit_vector()
@@ -330,13 +347,18 @@ class BehaviorAgent(BasicAgent):
     def update_vehicle(self, vehicle):
         loc = vehicle.get_location()
         if vehicle.id not in self.vehicles:
-            self.vehicles[vehicle.id] = (loc, carla.Vector3D(x=0.0, y=0.0, z=0.0))
+            self.vehicles[vehicle.id] = (loc, [carla.Vector3D(x=0.0, y=0.0, z=0.0), ])
         else:
-            loc_prev, velocity_prev = self.vehicles[vehicle.id]
+            loc_prev, velocity_prevs = self.vehicles[vehicle.id]
             velocity = carla.Vector3D(x=(loc.x - loc_prev.x)/self.time_step,
-                                       y=(loc.y - loc_prev.y)/self.time_step,
-                                       z=(loc.z - loc_prev.z)/self.time_step)
-            self.vehicles[vehicle.id] = (loc, (velocity + velocity_prev) / 2)
+                                      y=(loc.y - loc_prev.y)/self.time_step,
+                                      z=0.0)
+
+            if len(velocity_prevs) >= self.n_speed_prediction:
+                velocity_prevs.pop(0)
+            
+            velocity_prevs.append(velocity)
+            self.vehicles[vehicle.id] = (loc, velocity_prevs)
 
     def run_step(self, debug=False):
         """
@@ -357,6 +379,7 @@ class BehaviorAgent(BasicAgent):
         ego_vehicle_loc = self._vehicle.get_location()
         ego_vehicle_transform = self._vehicle.get_transform()
         ego_vehicle_velocity = self._vehicle.get_velocity().length() + 0.1
+        print("velocity", ego_vehicle_velocity)
         vehicle_list = self._world.get_actors().filter("*vehicle*")
         for vehicle in vehicle_list:
             self.update_vehicle(vehicle)
@@ -370,10 +393,9 @@ class BehaviorAgent(BasicAgent):
         speed_front = None
         right_free = True
         steps_to_consider_offset = 14
-        steps_to_consider_speed = 10
-        base_max_steps = 14
+        steps_to_consider_speed = 7
+        base_max_steps = int(ego_vehicle_velocity * 5)
 
-        
         print("#######################################################")
         max_steps = base_max_steps
         step = -1
@@ -425,11 +447,11 @@ class BehaviorAgent(BasicAgent):
                 offset = -2.0
                 max_steps += 1
             elif left_overtake_lane:
-                offset = max(0, 3.5 - left_overtake_lane[0][1])
+                offset = max(0, 3.0 - left_overtake_lane[0][1])
             elif left:
-                offset = max(0, 3.5 - left[0][1])
+                offset = max(0, 3.0 - left[0][1])
             elif right:
-                offset = min(0, -(3.5 - right[0][1]))
+                offset = min(0, -(3.0 - right[0][1]))
                 max_steps += 1
             else:
                 offset = 0.0
