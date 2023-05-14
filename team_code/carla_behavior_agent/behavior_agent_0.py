@@ -19,6 +19,7 @@ from pynput import keyboard
 import time
 import math
 from typing import List
+from shapely.geometry import Polygon
 
 # TODO: import the one with the correct index
 # from basic_agent import BasicAgent
@@ -169,41 +170,6 @@ class BehaviorAgent(BasicAgent):
     def print_state(self, state: str, line: int):
         draw_string(self._world, self._vehicle.get_location() - carla.Location(x=(line+1)*0.75), state, self.color)
 
-    def next_locations(self, location_list):
-        location_list_next = []
-        for vehicle, loc_pred_prev in location_list:
-            vel = vehicle.get_velocity().length()
-            acc = vehicle.get_acceleration().length()
-            fw = self._map.get_waypoint(loc_pred_prev).transform.get_forward_vector()
-
-            loc_pred = carla.Location(x=loc_pred_prev.x + (fw.x*vel) * self.time_step + (fw.x*acc) * self.time_step**2, 
-                                        y=loc_pred_prev.y + (fw.y*vel) * self.time_step + (fw.y*acc) * self.time_step**2, 
-                                        z=loc_pred_prev.z)
-            location_list_next.append((vehicle, loc_pred))
-        return location_list_next
-
-    """
-    def predict_locations(self, vehicle_list, time_step):
-        location_list = []
-        for vehicle in vehicle_list:
-            loc = vehicle.get_location()
-            vel = vehicle.get_velocity()
-            acc = vehicle.get_acceleration()
-
-            print(vel, vel.x, vel.y, vel.z)
-
-            vel_x = vel.x if abs(vel.x) > 1e-2 else 1e-2
-            vel_y = vel.y if abs(vel.y) > 1e-2 else 1e-2
-
-            x_prev = loc.x + vel_x * (time_step - time_step*0.01) + acc.x * (time_step - time_step*0.01)**2
-            x_new = loc.x + vel_x * time_step + acc.x * time_step**2
-            y_prev = loc.y + vel_y * (time_step - time_step*0.01) + acc.y * (time_step - time_step*0.01)**2
-            y_new = loc.y + vel_y * time_step + acc.y * time_step**2
-
-            loc_pred = carla.Location(x=x_new, y=y_new, z=loc.z)
-            location_list.append((vehicle, loc_pred, carla.Vector3D(x=(x_new-x_prev), y=(y_new-y_prev), z=0).make_unit_vector()))
-        return location_list
-    """
     def get_vel_acc(self, vehicle):
         vel_x = sum([x.x for x in self.vehicles[vehicle.id][1]]) / self.n_speed_prediction
         vel_y = sum([x.y for x in self.vehicles[vehicle.id][1]]) / self.n_speed_prediction
@@ -215,24 +181,6 @@ class BehaviorAgent(BasicAgent):
             vel_y *= max_speed / vel.length()
             vel = carla.Vector3D(x=vel_x, y=vel_y, z=0)
         return vel, 0.0
-
-    def predict_locations_unexact(self, vehicle_list, time_step):
-        location_list = []
-        for vehicle in vehicle_list:
-            loc = vehicle.get_location()
-            vel, acc = self.get_vel_acc(vehicle)
-
-            vel_x = vel.x if abs(vel.x) > 1e-2 else 1e-2
-            vel_y = vel.y if abs(vel.y) > 1e-2 else 1e-2
-
-            x_prev = loc.x + vel_x * (time_step - time_step*0.01) + acc.x * (time_step - time_step*0.01)**2
-            x_new = loc.x + vel_x * time_step + acc.x * time_step**2
-            y_prev = loc.y + vel_y * (time_step - time_step*0.01) + acc.y * (time_step - time_step*0.01)**2
-            y_new = loc.y + vel_y * time_step + acc.y * time_step**2
-
-            loc_pred = carla.Location(x=x_new, y=y_new, z=loc.z)
-            location_list.append((vehicle, loc_pred, carla.Vector3D(x=(x_new-x_prev), y=(y_new-y_prev), z=0).make_unit_vector()))
-        return location_list
 
     def predict_locations(self, vehicle_list, time_step, max_distance=100, max_distance_wp=100):
         def dist(location): return location.distance(self._vehicle.get_location())
@@ -254,34 +202,25 @@ class BehaviorAgent(BasicAgent):
             y_new = vel_y * time_step # + 0.5*acc.y * time_step**2
 
             distance = math.sqrt((x_new**2) + (y_new**2))
-            if distance > 250:
-                print(distance, vel_x, vel_y, time_step)
 
-            if distance < max_distance_wp:
-                wp = self._map.get_waypoint(loc)
+            wp = self._map.get_waypoint(loc)
 
-                if distance < 0.3:
-                    loc_pred = loc
-                    rot_pred = wp.transform.rotation.get_forward_vector()
-                else:
-                    # offset_length = loc.distance(wp.transform.location)
-                    # wp_right = wp.transform.get_right_vector()
-                    wp_next = wp.next(distance)[0]
-                    loc_pred = wp_next.transform.location
-
-                    offset_x = loc.x - wp.transform.location.x # offset_length*wp_right.x
-                    offset_y = loc.y - wp.transform.location.y # offset_length*wp_right.y
-                    loc_pred = carla.Location(x=loc_pred.x + offset_x, 
-                                            y=loc_pred.y + offset_y, 
-                                            z=loc_pred.z)
-
-                    rot_pred = wp_next.transform.rotation.get_forward_vector()
-                    # if loc.distance(loc_pred) > 1.5*distance:
-                    #     loc_pred = carla.Location(x=x_new, y=y_new, z=loc.z)
-                    #     rot_pred = carla.Vector3D(x=(x_new-x_prev), y=(y_new-y_prev), z=0).make_unit_vector()         
+            if distance < 0.3:
+                loc_pred = loc
+                rot_pred = wp.transform.rotation
             else:
-                loc_pred = carla.Location(x=x_new, y=y_new, z=loc.z)
-                rot_pred = carla.Vector3D(x=(x_new-x_prev), y=(y_new-y_prev), z=0).make_unit_vector()
+                # offset_length = loc.distance(wp.transform.location)
+                # wp_right = wp.transform.get_right_vector()
+                wp_next = wp.next(distance)[0]
+                loc_pred = wp_next.transform.location
+
+                offset_x = loc.x - wp.transform.location.x # offset_length*wp_right.x
+                offset_y = loc.y - wp.transform.location.y # offset_length*wp_right.y
+                loc_pred = carla.Location(x=loc_pred.x + offset_x, 
+                                        y=loc_pred.y + offset_y, 
+                                        z=loc_pred.z)
+
+                rot_pred = wp_next.transform.rotation       
 
             location_list.append((vehicle, loc_pred, rot_pred))
         return location_list
@@ -300,7 +239,7 @@ class BehaviorAgent(BasicAgent):
         ego_loc_pred = carla.Location(x=ego_loc_pred.x + offset_x, 
                                         y=ego_loc_pred.y + offset_y, 
                                         z=ego_loc_pred.z)
-        return ego_transform_pred, ego_loc_pred
+        return ego_wp, ego_transform_pred, ego_loc_pred
 
     def get_base_speed(self):
         return min([
@@ -309,40 +248,6 @@ class BehaviorAgent(BasicAgent):
 
     def get_lane(self, location):
         return self._map.get_waypoint(location, lane_type=carla.LaneType.Any).lane_id
-
-    def normal_lane(self, vehicle, step):
-        ego_wp, _ = self._local_planner.get_incoming_waypoint_and_direction(step)
-        v_loc = vehicle.get_location()
-        return self.get_lane(v_loc) == self.get_lane(ego_wp.transform.location)
-
-    def overtake_lane(self, vehicle, step):
-        ego_wp, _ = self._local_planner.get_incoming_waypoint_and_direction(step)
-        v_loc = vehicle.get_location()
-        return self.get_lane(v_loc) == -1*self.get_lane(ego_wp.transform.location)
-
-    def get_vehicles_on_opposite_lane(self, vehicle_list, step):
-        ego_wp, _ = self._local_planner.get_incoming_waypoint_and_direction(step)
-
-        vehicle_list_opposite = []
-        for vehicle in vehicle_list:
-            v_loc = vehicle.get_location()
-            if self.get_lane(v_loc) == -1 * self.get_lane(ego_wp.transform.location):
-                vehicle_list_opposite.append(vehicle)
-        return vehicle_list_opposite
-    
-    # def update_vehicle(self, vehicle):
-    #     loc = vehicle.get_location()
-    #     if vehicle.id not in self.vehicles:
-    #         self.vehicles[vehicle.id] = (loc, carla.Vector3D(x=0.0, y=0.0, z=0.0), carla.Vector3D(x=0.0, y=0.0, z=0.0))
-    #     else:
-    #         loc_prev, velocity_prev, acc_prev = self.vehicles[vehicle.id]
-    #         velocity = carla.Vector3D(x=(loc.x - loc_prev.x)/self.time_step,
-    #                                    y=(loc.y - loc_prev.y)/self.time_step,
-    #                                    z=(loc.z - loc_prev.z)/self.time_step)
-    #         acc = carla.Vector3D(x=(velocity.x - velocity_prev.x)/self.time_step,
-    #                               y=(velocity.y - velocity_prev.y)/self.time_step,
-    #                               z=(velocity.z - velocity_prev.z)/self.time_step)
-    #         self.vehicles[vehicle.id] = (loc, (velocity + velocity_prev) / 2, (acc + acc_prev) / 2)
 
     def update_vehicle(self, vehicle):
         loc = vehicle.get_location()
@@ -359,6 +264,56 @@ class BehaviorAgent(BasicAgent):
             
             velocity_prevs.append(velocity)
             self.vehicles[vehicle.id] = (loc, velocity_prevs)
+
+    def get_ego_time_from_step(self, step):
+        return int(step * 0.25 * (self.get_base_speed() / 3.6))
+
+    def has_lane(self, ego_wp, direction: str):
+        # direction: ["right", "overtake"]
+        if direction == "right":
+            return ego_wp.get_right_lane() is not None
+        return ego_wp.get_left_lane() is not None
+
+    def check_vehicles(self, ego_wp, locations, lane: str):
+        # direction: ["normal", "overtake", "right"]
+        vehicles = []
+        margin = 0.0
+
+        if lane == "normal":
+            ego_wp_direction = ego_wp
+        elif lane == "right":
+            ego_wp_direction = ego_wp.get_right_lane()
+        elif lane == "overtake":
+            ego_wp_direction = ego_wp.get_left_lane()
+
+        ego_bbox = self._vehicle.bounding_box
+
+        ego_vertices = ego_bbox.get_world_vertices(ego_wp_direction.transform)
+        ego_pol = Polygon([[v.x, v.y, v.z] for v in ego_vertices])
+        for vehicle, location, rotation in locations:
+            if misc.is_hero(vehicle):
+                continue
+
+            bbox = vehicle.bounding_box
+            extent = carla.Vector3D(
+                x=(bbox.extent.x if bbox.extent.x > 3.0 else 3.0) + margin,
+                y=(bbox.extent.y if bbox.extent.y > 4.0 else 4.0) + margin,
+                z=(bbox.extent.z if bbox.extent.z > 2.0 else 2.0) + margin
+            )
+            bbox = carla.BoundingBox(carla.Location(), extent)
+            transform = carla.Transform(location, rotation)
+
+            pol = Polygon([[v.x, v.y, v.z] for v in bbox.get_world_vertices(transform)])
+
+            if ego_pol.intersects(pol):
+                vehicles.append((vehicle, transform))
+        return vehicles
+
+    def check_occupied(self, ego_wp, locations, direction: str):
+        return not self.check_free(ego_wp, locations, direction)
+
+    def check_free(self, ego_wp, locations, direction: str):
+        return len(self.check_vehicles(ego_wp, locations, direction)) == 0
 
     def run_step(self, debug=False):
         """
@@ -377,14 +332,12 @@ class BehaviorAgent(BasicAgent):
         #############################
         # Starting info
         ego_vehicle_loc = self._vehicle.get_location()
+        ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
         ego_vehicle_transform = self._vehicle.get_transform()
-        ego_vehicle_velocity = self._vehicle.get_velocity().length() + 0.1
-        print("velocity", ego_vehicle_velocity)
+
         vehicle_list = self._world.get_actors().filter("*vehicle*")
         for vehicle in vehicle_list:
             self.update_vehicle(vehicle)
-        # Aree di interesse
-        sensors = [("right", 0, 5, 10, 170), ("left", 0, 5, -170, -10), ("front", 0, 5, -45, 45)]
         #############################
 
         offsets = []
@@ -392,9 +345,11 @@ class BehaviorAgent(BasicAgent):
         stop_overtake = False
         speed_front = None
         right_free = True
-        steps_to_consider_offset = 14
+        left_free = True
+        overtaking = False
+        steps_to_consider_offset = 3
         steps_to_consider_speed = 7
-        base_max_steps = int(ego_vehicle_velocity * 5)
+        base_max_steps = 14
 
         print("#######################################################")
         max_steps = base_max_steps
@@ -406,12 +361,24 @@ class BehaviorAgent(BasicAgent):
             # Location prediction
             #############################
             if step == -1:
-                ego_transform_pred, ego_loc_pred = ego_vehicle_transform, ego_vehicle_loc
-                vehicle_list = [x for x in vehicle_list if -100 < utils_sensors.compute_magnitude_angle_with_sign(x.get_location(), ego_loc_pred, ego_transform_pred.rotation.yaw)[1] < 100]
-                transform_list = [(x, x.get_location(), x.get_transform().get_forward_vector()) for x in vehicle_list]
+                ego_wp, ego_transform_pred, ego_loc_pred = ego_vehicle_wp, ego_vehicle_transform, ego_vehicle_loc
+                _vehicle_list = []
+                
+                for vel in vehicle_list:
+                    if misc.is_hero(vel):
+                        continue
+                    _distance, _angle = utils_sensors.compute_magnitude_angle_with_sign(vel.get_location(), ego_loc_pred, ego_transform_pred.rotation.yaw)
+                    if -90 <= _angle <= 90 or ((-180 <= _angle < -90 or 90 < _angle <= 180) and _distance < 7):
+                        _vehicle_list.append(vel)
+
+                vehicle_list = _vehicle_list
+                transform_list = [(x, x.get_location(), x.get_transform().rotation) for x in vehicle_list]
+
+                # self._world.debug.draw_box(carla.BoundingBox(ego_transform_pred.location, self._vehicle.bounding_box.extent), 
+                # ego_transform_pred.rotation, life_time=0.06)
             else:
-                ego_transform_pred, ego_loc_pred = self.predict_ego_data(_prev_offset, step)
-                transform_list = self.predict_locations(vehicle_list, (step + 1) / ego_vehicle_velocity)
+                ego_wp, ego_transform_pred, ego_loc_pred = self.predict_ego_data(_prev_offset, self.get_ego_time_from_step(step))
+                transform_list = self.predict_locations(vehicle_list, step * 0.25)
 
             if step < steps_to_consider_offset:
                 for vel, location, _ in transform_list:
@@ -422,58 +389,64 @@ class BehaviorAgent(BasicAgent):
             # draw_point(self._world, ego_loc_pred, color=(255, 0, 0, 255) if not step == -1 else (255, 255, 0, 255), life_time=-1)
             #############################
 
-
-            #############################
-            # Sensor capture
-            #############################
-            sensors_result = utils_sensors.get_sensors_locations_fw(ego_loc_pred, ego_transform_pred, transform_list, sensors, max_distance=20)
-
-            front_overtake_lane = [x for x in sensors_result["front"] if not self.normal_lane(x[0], step)]
-            front_normal_lane = [x for x in sensors_result["front"] if self.normal_lane(x[0], step)]
-            left_overtake_lane = [x for x in sensors_result["left"] if self.overtake_lane(x[0], step)]
-            left = sensors_result["left"]
-            right = sensors_result["right"]
-            #############################
-
-
             #############################
             # Lane proposal
             #############################
-            if front_overtake_lane: #  and _prev_offset < 0:
-                print("stop overtake", step)
-                stop_overtake = True
-                offset = 0.0
-            elif front_normal_lane and not left_overtake_lane and not _prev_offset < 0:
-                offset = -2.0
-                max_steps += 1
-            elif left_overtake_lane:
-                offset = max(0, 3.0 - left_overtake_lane[0][1])
-            elif left:
-                offset = max(0, 3.0 - left[0][1])
-            elif right:
-                offset = min(0, -(3.0 - right[0][1]))
-                max_steps += 1
+            if not overtaking:
+                if (self.check_occupied(ego_wp, transform_list, "normal") and
+                    self.has_lane(ego_wp, "overtake") and 
+                    self.check_free(ego_wp, transform_list, "overtake")):
+                    offset = -2.0
+                    max_steps += 4
+                    overtaking = True
+                elif (self.has_lane(ego_wp, "overtake") and 
+                      self.check_occupied(ego_wp, transform_list, "overtake")):
+                    offset = 0.75
+                    _vel, transform = self.check_vehicles(ego_wp, transform_list, "overtake")[0]
+
+                    self._world.debug.draw_box(carla.BoundingBox(ego_transform_pred.location, self._vehicle.bounding_box.extent), 
+                                               ego_transform_pred.rotation, life_time=0.06)
+                    self._world.debug.draw_box(carla.BoundingBox(transform.location, _vel.bounding_box.extent), 
+                                               transform.rotation, life_time=0.06, color=carla.Color(0, 0, 255))
+                    
+                    self._world.debug.draw_box(carla.BoundingBox(ego_wp.get_left_lane().transform.location, _vel.bounding_box.extent), 
+                                               ego_wp.get_left_lane().transform.rotation, life_time=0.06, color=carla.Color(0, 255, 0))
+                else:
+                    offset = 0.0
             else:
-                offset = 0.0
+                # Overtake occupied and normal lane is free
+                if (self.check_occupied(ego_wp, transform_list, "overtake") and
+                    self.check_free(ego_wp, transform_list, "normal")):
+                    print("stop overtake", step)
+                    for index in range(len(offsets)-1, -1, -1):
+                        if not offsets[index] < 0.0:
+                            break
+                        offsets[index] = 0.0
+                    print("cleaning overtake")
+                    offset = 0.0
+                    overtaking = False
+                # Normal lane occupied
+                elif (self.check_occupied(ego_wp, transform_list, "normal")):
+                    offset = -2.0
+                    max_steps += 4
+                    overtaking = True
+                # Else => follow road and stop overtake
+                else:
+                    print("Stopping overtake")
+                    overtaking = False
+                    offset = 0.0
 
             _prev_offset = offset
-            if step < steps_to_consider_offset:
-                offsets.append(offset)
+            offsets.append(offset)
             #############################
 
-
-            #############################
-            # Right free
-            #############################
-            if step == -1 and sensors_result["right"]:
-                right_free = False
-            #############################
 
             #############################
             # Speed proposal
             #############################
-            if step < steps_to_consider_speed and speed_front is None and front_normal_lane:
-                speed_front = self.get_vel_acc(front_normal_lane[0][0])[0].length()
+            frontal_vehicles = self.check_vehicles(ego_wp, transform_list, "normal")
+            if step < steps_to_consider_speed and speed_front is None and frontal_vehicles:
+                speed_front = self.get_vel_acc(frontal_vehicles[0][0])[0].length()
             #############################
 
             step += 1
@@ -481,17 +454,8 @@ class BehaviorAgent(BasicAgent):
         #############################
         # Lane management
         #############################
-        # offset_final = misc.exponential_weighted_average(offsets, 0.4)
-        if any([x > 0.0 for x in offsets]):
-            print("move to the right")
-            offset_final = max(offsets)
-        elif any([x < 0.0 for x in offsets]):
-            offset_final = min(offsets)
-        else:
-            offset_final = 0.0
-
-        if offset_final < 0.0 and stop_overtake and right_free:
-            offset_final = 0.0
+        offset_final = misc.exponential_weighted_average(offsets[:steps_to_consider_offset], 0.4)
+        print("offset final:", offset_final)
         #############################
 
 
@@ -500,10 +464,13 @@ class BehaviorAgent(BasicAgent):
         #############################
         if offset_final < 0:
             speed_final = 45
-        elif speed_front is not None and stop_overtake:
-            speed_final = speed_front
+        elif speed_front is not None:
+            speed_final = speed_front * 3.6
+            print("\nspeed front", speed_final)
         else:
             speed_final = self.get_base_speed()
+
+        print("speed final:", speed_final)
         #############################
 
         self.prev_offset = offset_final

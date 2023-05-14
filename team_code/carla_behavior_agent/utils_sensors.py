@@ -33,7 +33,7 @@ def get_sensors_locations_fw(ego_vehicle_location, ego_vehicle_transform, locati
     """
     def _compute_info(ego_location, location): return compute_magnitude_angle_with_sign(location, ego_location, ego_vehicle_transform.rotation.yaw)
     def dist(location): return location.distance(ego_vehicle_location)
-    vehicle_length_step = 4.0 / 4
+    vehicle_length_step = 4.0 / 1
 
     ego_locs = []
     ego_fw = ego_vehicle_transform.rotation.get_forward_vector()
