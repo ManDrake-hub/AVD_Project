@@ -3,13 +3,13 @@
         "global_record": {
             "index": -1,
             "route_id": -1,
-            "status": "Failed",
+            "status": "Completed",
             "infractions": {
                 "collisions_layout": 0.0,
                 "collisions_pedestrian": 0.0,
                 "collisions_vehicle": 0.0,
                 "red_light": 0.0,
-                "stop_infraction": 0.0,
+                "stop_infraction": 0.237,
                 "outside_route_lanes": 0.013,
                 "min_speed_infractions": 0.0,
                 "yield_emergency_vehicles_infractions": 0.0,
@@ -19,9 +19,9 @@
                 "route_timeout": 0.0
             },
             "scores_mean": {
-                "score_composed": 60.710919,
-                "score_route": 61.01,
-                "score_penalty": 0.995098
+                "score_composed": 79.760684,
+                "score_route": 100.0,
+                "score_penalty": 0.797607
             },
             "scores_std_dev": {
                 "score_composed": "NaN",
@@ -29,13 +29,7 @@
                 "score_penalty": "NaN"
             },
             "meta": {
-                "exceptions": [
-                    [
-                        "RouteScenario_0_rep0",
-                        0,
-                        "Failed"
-                    ]
-                ]
+                "exceptions": []
             }
         },
         "progress": [
@@ -46,16 +40,18 @@
             {
                 "index": 0,
                 "route_id": "RouteScenario_0_rep0",
-                "status": "Failed",
-                "num_infractions": 1,
+                "status": "Completed",
+                "num_infractions": 2,
                 "infractions": {
                     "collisions_layout": [],
                     "collisions_pedestrian": [],
                     "collisions_vehicle": [],
                     "red_light": [],
-                    "stop_infraction": [],
+                    "stop_infraction": [
+                        "Agent ran a stop with id=87462 at (x=-2930.142, y=3888.182, z=360.212)"
+                    ],
                     "outside_route_lanes": [
-                        "Agent went outside its route lanes for about 12.594 meters (0.49% of the completed route)"
+                        "Agent went outside its route lanes for about 12.594 meters (0.3% of the completed route)"
                     ],
                     "min_speed_infractions": [],
                     "yield_emergency_vehicles_infractions": [],
@@ -65,14 +61,14 @@
                     "route_timeout": []
                 },
                 "scores": {
-                    "score_route": 61.01,
-                    "score_penalty": 0.995098,
-                    "score_composed": 60.710919
+                    "score_route": 100,
+                    "score_penalty": 0.797607,
+                    "score_composed": 79.760684
                 },
                 "meta": {
                     "route_length": 4210.947,
-                    "duration_game": 438.1,
-                    "duration_system": 580.263
+                    "duration_game": 710.45,
+                    "duration_system": 893.723
                 }
             }
         ]
@@ -83,14 +79,14 @@
         "carla_speedometer"
     ],
     "values": [
-        "60.710919",
-        "61.01",
-        "0.995098",
+        "79.760684",
+        "100.0",
+        "0.797607",
         "0.0",
         "0.0",
         "0.0",
         "0.0",
-        "0.0",
+        "0.237",
         "0.013",
         "0.0",
         "0.0",

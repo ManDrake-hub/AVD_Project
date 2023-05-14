@@ -364,7 +364,7 @@ class BehaviorAgent(BasicAgent):
         overtaking = False
         steps_to_consider_offset = 7
         steps_to_consider_speed = 7
-        base_max_steps = 14
+        base_max_steps = 7
 
         print("#######################################################")
         max_steps = base_max_steps
@@ -412,7 +412,7 @@ class BehaviorAgent(BasicAgent):
                     self.has_lane(ego_wp, "overtake") and 
                     self.check_free(ego_wp, transform_list, "overtake")):
                     offset = self.overtake_offset
-                    max_steps += 4
+                    max_steps += 1
                     overtaking = True
                 elif (self.has_lane(ego_wp, "overtake") and 
                       self.check_occupied(ego_wp, transform_list, "overtake")):
@@ -430,12 +430,11 @@ class BehaviorAgent(BasicAgent):
                     offset = 0.0
             else:
                 # Overtake occupied and normal lane is free
-                if (self.check_occupied(ego_wp, transform_list, "overtake")):
+                # self.check_free(ego_wp, transform_list, "normal")
+                if (self.check_occupied(ego_wp, transform_list, "overtake")): 
                     print("\n\nstop overtake", step)
                     for index in range(len(offsets)-1, -1, -1):
                         print("cleaned", index)
-                        if not offsets[index] < 0.0:
-                            break
                         offsets[index] = 0.0
                     print("cleaning overtake")
                     offset = 0.0
@@ -443,7 +442,7 @@ class BehaviorAgent(BasicAgent):
                 # Normal lane occupied
                 elif (self.check_occupied(ego_wp, transform_list, "normal")):
                     offset = self.overtake_offset
-                    max_steps += 4
+                    max_steps += 1
                     overtaking = True
                 # Else => follow road and stop overtake
                 else:
