@@ -412,7 +412,7 @@ class BehaviorAgent(BasicAgent):
                     self.has_lane(ego_wp, "overtake") and 
                     self.check_free(ego_wp, transform_list, "overtake")):
                     offset = self.overtake_offset
-                    max_steps += 1
+                    max_steps += 2
                     overtaking = True
                 elif (self.has_lane(ego_wp, "overtake") and 
                       self.check_occupied(ego_wp, transform_list, "overtake")):
@@ -442,7 +442,7 @@ class BehaviorAgent(BasicAgent):
                 # Normal lane occupied
                 elif (self.check_occupied(ego_wp, transform_list, "normal")):
                     offset = self.overtake_offset
-                    max_steps += 1
+                    max_steps += 2
                     overtaking = True
                 # Else => follow road and stop overtake
                 else:
