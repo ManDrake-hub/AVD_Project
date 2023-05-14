@@ -129,6 +129,8 @@ class BehaviorAgent(BasicAgent):
         self.time_step = 0.05 # 20Hz
         self.step_distance = 0.5
         self.n_speed_prediction = 10
+        self.overtake_offset = -2.5
+        self.dodge_offset = 0.75
 
         ################################################################
         # Section for GA scoring system
@@ -274,31 +276,44 @@ class BehaviorAgent(BasicAgent):
             return ego_wp.get_right_lane() is not None
         return ego_wp.get_left_lane() is not None
 
+    def get_overtake_location(self, ego_wp):
+        ego_transform = ego_wp.transform
+        ego_location = ego_wp.transform.location
+
+        offset = self.overtake_offset
+
+        r_vec = ego_transform.get_right_vector()
+        offset_x = offset*r_vec.x
+        offset_y = offset*r_vec.y
+
+        ego_location = carla.Location(x=ego_location.x + offset_x, 
+                                    y=ego_location.y + offset_y, 
+                                    z=ego_location.z)
+        return ego_location
+
     def check_vehicles(self, ego_wp, locations, lane: str):
-        # direction: ["normal", "overtake", "right"]
+        # direction: ["normal", "overtake"]
         vehicles = []
         margin = 0.0
 
-        if lane == "normal":
-            ego_wp_direction = ego_wp
-        elif lane == "right":
-            ego_wp_direction = ego_wp.get_right_lane()
-        elif lane == "overtake":
-            ego_wp_direction = ego_wp.get_left_lane()
+        ego_location = ego_wp.transform.location
+        if lane == "overtake":
+            ego_location = self.get_overtake_location(ego_wp)
+        ego_rotation = ego_wp.transform.rotation
 
         ego_bbox = self._vehicle.bounding_box
-
-        ego_vertices = ego_bbox.get_world_vertices(ego_wp_direction.transform)
+        ego_vertices = ego_bbox.get_world_vertices(carla.Transform(ego_location, ego_rotation))
         ego_pol = Polygon([[v.x, v.y, v.z] for v in ego_vertices])
+
         for vehicle, location, rotation in locations:
             if misc.is_hero(vehicle):
                 continue
 
             bbox = vehicle.bounding_box
             extent = carla.Vector3D(
-                x=(bbox.extent.x if bbox.extent.x > 3.0 else 3.0) + margin,
-                y=(bbox.extent.y if bbox.extent.y > 4.0 else 4.0) + margin,
-                z=(bbox.extent.z if bbox.extent.z > 2.0 else 2.0) + margin
+                x=(bbox.extent.x if bbox.extent.x > 1.0 else 1.0) + margin,
+                y=(bbox.extent.y if bbox.extent.y > 1.0 else 1.0) + margin,
+                z=(bbox.extent.z if bbox.extent.z > 1.0 else 1.0) + margin
             )
             bbox = carla.BoundingBox(carla.Location(), extent)
             transform = carla.Transform(location, rotation)
@@ -347,7 +362,7 @@ class BehaviorAgent(BasicAgent):
         right_free = True
         left_free = True
         overtaking = False
-        steps_to_consider_offset = 3
+        steps_to_consider_offset = 7
         steps_to_consider_speed = 7
         base_max_steps = 14
 
@@ -396,12 +411,12 @@ class BehaviorAgent(BasicAgent):
                 if (self.check_occupied(ego_wp, transform_list, "normal") and
                     self.has_lane(ego_wp, "overtake") and 
                     self.check_free(ego_wp, transform_list, "overtake")):
-                    offset = -2.0
+                    offset = self.overtake_offset
                     max_steps += 4
                     overtaking = True
                 elif (self.has_lane(ego_wp, "overtake") and 
                       self.check_occupied(ego_wp, transform_list, "overtake")):
-                    offset = 0.75
+                    offset = self.dodge_offset
                     _vel, transform = self.check_vehicles(ego_wp, transform_list, "overtake")[0]
 
                     self._world.debug.draw_box(carla.BoundingBox(ego_transform_pred.location, self._vehicle.bounding_box.extent), 
@@ -409,16 +424,16 @@ class BehaviorAgent(BasicAgent):
                     self._world.debug.draw_box(carla.BoundingBox(transform.location, _vel.bounding_box.extent), 
                                                transform.rotation, life_time=0.06, color=carla.Color(0, 0, 255))
                     
-                    self._world.debug.draw_box(carla.BoundingBox(ego_wp.get_left_lane().transform.location, _vel.bounding_box.extent), 
-                                               ego_wp.get_left_lane().transform.rotation, life_time=0.06, color=carla.Color(0, 255, 0))
+                    self._world.debug.draw_box(carla.BoundingBox(self.get_overtake_location(ego_wp), _vel.bounding_box.extent), 
+                                               ego_wp.transform.rotation, life_time=0.06, color=carla.Color(0, 255, 0))
                 else:
                     offset = 0.0
             else:
                 # Overtake occupied and normal lane is free
-                if (self.check_occupied(ego_wp, transform_list, "overtake") and
-                    self.check_free(ego_wp, transform_list, "normal")):
-                    print("stop overtake", step)
+                if (self.check_occupied(ego_wp, transform_list, "overtake")):
+                    print("\n\nstop overtake", step)
                     for index in range(len(offsets)-1, -1, -1):
+                        print("cleaned", index)
                         if not offsets[index] < 0.0:
                             break
                         offsets[index] = 0.0
@@ -427,7 +442,7 @@ class BehaviorAgent(BasicAgent):
                     overtaking = False
                 # Normal lane occupied
                 elif (self.check_occupied(ego_wp, transform_list, "normal")):
-                    offset = -2.0
+                    offset = self.overtake_offset
                     max_steps += 4
                     overtaking = True
                 # Else => follow road and stop overtake
@@ -449,12 +464,30 @@ class BehaviorAgent(BasicAgent):
                 speed_front = self.get_vel_acc(frontal_vehicles[0][0])[0].length()
             #############################
 
+
+            #############################
+            # Right and Left free
+            #############################
+            if step < steps_to_consider_offset and self.check_occupied(ego_wp, transform_list, "overtake"):
+                left_free = False
+
+            if step < steps_to_consider_offset and self.check_occupied(ego_wp, transform_list, "normal"):
+                right_free = False
+            #############################
+
+
             step += 1
 
         #############################
         # Lane management
         #############################
-        offset_final = misc.exponential_weighted_average(offsets[:steps_to_consider_offset], 0.4)
+        offsets = offsets[:steps_to_consider_offset]
+        if any([x < 0.0 for x in offsets]) and ((left_free and not self.prev_offset < 0.0) or self.prev_offset < 0.0):
+            offset_final = min(offsets)
+        elif any([x > 0.0 for x in offsets]) and ((right_free and self.prev_offset < 0.0) or not self.prev_offset < 0.0):
+            offset_final = max(offsets)
+        else:
+            offset_final = 0.0
         print("offset final:", offset_final)
         #############################
 
