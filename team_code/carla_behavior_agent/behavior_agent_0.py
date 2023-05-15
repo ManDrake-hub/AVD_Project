@@ -184,6 +184,33 @@ class BehaviorAgent(BasicAgent):
             vel = carla.Vector3D(x=vel_x, y=vel_y, z=0)
         return vel, 0.0
 
+    def predict_locations_unexact(self, vehicle_list, time_step):
+        location_list = []
+        for vehicle in vehicle_list:
+            loc = vehicle.get_location()
+            vel, acc = self.get_vel_acc(vehicle)
+
+            vel_x = vel.x if abs(vel.x) > 1e-2 else 1e-2
+            vel_y = vel.y if abs(vel.y) > 1e-2 else 1e-2
+
+            x_prev = loc.x + vel_x * (time_step - time_step*0.01) # + acc.x * (time_step - time_step*0.01)**2
+            x_new = loc.x + vel_x * time_step # + acc.x * time_step**2
+            y_prev = loc.y + vel_y * (time_step - time_step*0.01) # + acc.y * (time_step - time_step*0.01)**2
+            y_new = loc.y + vel_y * time_step # + acc.y * time_step**2
+
+            distance = math.sqrt(((x_new - loc.x)**2) + ((y_new - loc.y)**2))
+
+            if distance < 0.2:
+                loc_pred = loc
+                rot_pred = vehicle.get_transform().rotation
+            else:
+                loc_pred = carla.Location(x=x_new, y=y_new, z=loc.z)
+                rot_pred = carla.Vector3D(x=(x_new-x_prev), y=(y_new-y_prev), z=0).make_unit_vector()
+                rot_pred = carla.Rotation(yaw=math.atan2(rot_pred.y, rot_pred.x), pitch=0.0, roll=0.0)
+
+            location_list.append((vehicle, loc_pred, rot_pred))
+        return location_list
+
     def predict_locations(self, vehicle_list, time_step, max_distance=100, max_distance_wp=100):
         def dist(location): return location.distance(self._vehicle.get_location())
 
@@ -222,7 +249,7 @@ class BehaviorAgent(BasicAgent):
                                         y=loc_pred.y + offset_y, 
                                         z=loc_pred.z)
 
-                rot_pred = wp_next.transform.rotation       
+                rot_pred = wp_next.transform.rotation
 
             location_list.append((vehicle, loc_pred, rot_pred))
         return location_list
@@ -351,13 +378,17 @@ class BehaviorAgent(BasicAgent):
         ego_vehicle_transform = self._vehicle.get_transform()
 
         vehicle_list = self._world.get_actors().filter("*vehicle*")
+        walker_list = self._world.get_actors().filter("*walker*")
         for vehicle in vehicle_list:
             self.update_vehicle(vehicle)
+        for walker in walker_list:
+            self.update_vehicle(walker)
         #############################
 
         offsets = []
         _prev_offset = self.prev_offset
         stop_overtake = False
+        stop_walkers = False
         speed_front = None
         right_free = True
         left_free = True
@@ -377,31 +408,65 @@ class BehaviorAgent(BasicAgent):
             #############################
             if step == -1:
                 ego_wp, ego_transform_pred, ego_loc_pred = ego_vehicle_wp, ego_vehicle_transform, ego_vehicle_loc
+
                 _vehicle_list = []
-                
                 for vel in vehicle_list:
                     if misc.is_hero(vel):
                         continue
                     _distance, _angle = utils_sensors.compute_magnitude_angle_with_sign(vel.get_location(), ego_loc_pred, ego_transform_pred.rotation.yaw)
                     if -90 <= _angle <= 90 or ((-180 <= _angle < -90 or 90 < _angle <= 180) and _distance < 7):
                         _vehicle_list.append(vel)
-
                 vehicle_list = _vehicle_list
-                transform_list = [(x, x.get_location(), x.get_transform().rotation) for x in vehicle_list]
 
-                # self._world.debug.draw_box(carla.BoundingBox(ego_transform_pred.location, self._vehicle.bounding_box.extent), 
-                # ego_transform_pred.rotation, life_time=0.06)
+                _walker_list = []
+                for walker in walker_list:
+                    if abs(walker.get_location().z - ego_loc_pred.z) > 2.0:
+                        continue
+                    _walker_list.append(walker)
+                walker_list = _walker_list
+
+                transform_list = [(x, x.get_location(), x.get_transform().rotation) for x in vehicle_list]
+                transform_list_walkers = [(x, x.get_location(), x.get_transform().rotation) for x in walker_list]
             else:
                 ego_wp, ego_transform_pred, ego_loc_pred = self.predict_ego_data(_prev_offset, self.get_ego_time_from_step(step))
                 transform_list = self.predict_locations(vehicle_list, step * 0.25)
+                transform_list_walkers = self.predict_locations_unexact(walker_list, step * 0.25)
 
             if step < steps_to_consider_offset:
                 for vel, location, _ in transform_list:
                     if misc.is_hero(vel):
                         continue
                     draw_point(self._world, location, color=(0, 128, 255, 255), life_time=self.time_step + 0.01)
+                for vel, location, _ in transform_list_walkers:
+                    if misc.is_hero(vel):
+                        continue
+                    draw_point(self._world, location, color=(0, 0, 255, 255), life_time=self.time_step + 0.01)
                 draw_point(self._world, ego_loc_pred, color=(255, 0, 0, 255), life_time=self.time_step + 0.01)
             # draw_point(self._world, ego_loc_pred, color=(255, 0, 0, 255) if not step == -1 else (255, 255, 0, 255), life_time=-1)
+            #############################
+
+
+            #############################
+            # Walker detection
+            #############################
+            if (transform_list_walkers and 
+                (self.check_occupied(ego_wp, transform_list_walkers, "normal") or
+                (self.has_lane(ego_wp, "overtake") and 
+                self.check_occupied(ego_wp, transform_list_walkers, "overtake")))):
+
+                if self.check_occupied(ego_wp, transform_list_walkers, "normal"):
+                    _vel, transform = self.check_vehicles(ego_wp, transform_list_walkers, "normal")[0]
+                elif (self.has_lane(ego_wp, "overtake") and 
+                    self.check_occupied(ego_wp, transform_list_walkers, "overtake")):
+                    _vel, transform = self.check_vehicles(ego_wp, transform_list_walkers, "overtake")[0]
+
+                self._world.debug.draw_box(carla.BoundingBox(ego_transform_pred.location, self._vehicle.bounding_box.extent), 
+                                            ego_transform_pred.rotation, life_time=0.06)
+                self._world.debug.draw_box(carla.BoundingBox(transform.location, _vel.bounding_box.extent), 
+                                            transform.rotation, life_time=0.06, color=carla.Color(0, 0, 255))
+                stop_walkers = True
+
+
             #############################
 
             #############################
@@ -503,6 +568,16 @@ class BehaviorAgent(BasicAgent):
             speed_final = self.get_base_speed()
 
         print("speed final:", speed_final)
+        #############################
+
+
+        #############################
+        # Walkers management
+        #############################
+        if stop_walkers:
+            speed_final = 0.0
+            offset_final = 0.0
+            print("Walkers overruled")
         #############################
 
         self.prev_offset = offset_final
