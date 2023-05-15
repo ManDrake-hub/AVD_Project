@@ -395,7 +395,7 @@ class BehaviorAgent(BasicAgent):
         ego_vehicle_transform = self._vehicle.get_transform()
 
         vehicle_list = list(self._world.get_actors().filter("*vehicle*"))
-        vehicle_list += self._world.get_actors().filter("*static.prop*")
+        vehicle_list += list(self._world.get_actors().filter("*static.prop*"))
 
         walker_list = self._world.get_actors().filter("*walker*")
         for vehicle in vehicle_list:
