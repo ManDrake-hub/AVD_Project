@@ -303,6 +303,21 @@ class BehaviorAgent(BasicAgent):
             return ego_wp.get_right_lane() is not None
         return ego_wp.get_left_lane() is not None
 
+    def get_right_location(self, ego_wp):
+        ego_transform = ego_wp.transform
+        ego_location = ego_wp.transform.location
+
+        offset = self.dodge_offset
+
+        r_vec = ego_transform.get_right_vector()
+        offset_x = offset*r_vec.x
+        offset_y = offset*r_vec.y
+
+        ego_location = carla.Location(x=ego_location.x + offset_x, 
+                                    y=ego_location.y + offset_y, 
+                                    z=ego_location.z)
+        return ego_location
+
     def get_overtake_location(self, ego_wp):
         ego_transform = ego_wp.transform
         ego_location = ego_wp.transform.location
@@ -319,13 +334,15 @@ class BehaviorAgent(BasicAgent):
         return ego_location
 
     def check_vehicles(self, ego_wp, locations, lane: str):
-        # direction: ["normal", "overtake"]
+        # direction: ["normal", "overtake", "right"]
         vehicles = []
         margin = 0.0
 
         ego_location = ego_wp.transform.location
         if lane == "overtake":
             ego_location = self.get_overtake_location(ego_wp)
+        if lane == "right":
+            ego_location = self.get_right_location(ego_wp)
         ego_rotation = ego_wp.transform.rotation
 
         ego_bbox = self._vehicle.bounding_box
@@ -377,7 +394,9 @@ class BehaviorAgent(BasicAgent):
         ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
         ego_vehicle_transform = self._vehicle.get_transform()
 
-        vehicle_list = self._world.get_actors().filter("*vehicle*")
+        vehicle_list = list(self._world.get_actors().filter("*vehicle*"))
+        vehicle_list += self._world.get_actors().filter("*static.prop*")
+
         walker_list = self._world.get_actors().filter("*walker*")
         for vehicle in vehicle_list:
             self.update_vehicle(vehicle)
@@ -390,7 +409,7 @@ class BehaviorAgent(BasicAgent):
         stop_overtake = False
         stop_walkers = False
         speed_front = None
-        right_free = True
+        normal_free = True
         left_free = True
         overtaking = False
         steps_to_consider_offset = 7
@@ -536,7 +555,7 @@ class BehaviorAgent(BasicAgent):
                 left_free = False
 
             if step < steps_to_consider_offset and self.check_occupied(ego_wp, transform_list, "normal"):
-                right_free = False
+                normal_free = False
             #############################
 
 
@@ -548,7 +567,7 @@ class BehaviorAgent(BasicAgent):
         offsets = offsets[:steps_to_consider_offset]
         if any([x < 0.0 for x in offsets]) and ((left_free and not self.prev_offset < 0.0) or self.prev_offset < 0.0):
             offset_final = min(offsets)
-        elif any([x > 0.0 for x in offsets]) and ((right_free and self.prev_offset < 0.0) or not self.prev_offset < 0.0):
+        elif any([x > 0.0 for x in offsets]) and ((normal_free and self.prev_offset < 0.0) or not self.prev_offset < 0.0):
             offset_final = max(offsets)
         else:
             offset_final = 0.0
