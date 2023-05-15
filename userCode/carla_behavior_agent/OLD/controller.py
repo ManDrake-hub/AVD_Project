@@ -11,7 +11,6 @@ import numpy as np
 import carla
 from misc import get_speed
 import sys
-import json
 
 from math import atan2, atan, hypot
 
@@ -23,7 +22,7 @@ class VehicleController():
     a vehicle from client side
     """
 
-    def __init__(self, vehicle, args_lateral, args_longitudinal, offset=0.0, max_throttle=0.75, max_brake=0.3,
+    def __init__(self, vehicle, args_lateral, args_longitudinal, offset=0, max_throttle=0.75, max_brake=0.3,
                  max_steering=0.8):
         """
         Constructor method.
@@ -53,8 +52,6 @@ class VehicleController():
         self._lon_controller = PIDLongitudinalController(self._vehicle, **args_longitudinal)
         self._lat_controller = StanleyLateralController(self._vehicle, offset, **args_lateral)
 
-    def set_stanley_offset(self, offset):
-        self._lat_controller._offset = offset
 
     def run_step(self, target_speed, waypoint):
         """
@@ -196,10 +193,7 @@ class StanleyLateralController():
         self._dt = dt
         self._wps = None
         self._lookahead_distance = lookahead_distance
-
         self._offset = offset
-        with open("./config.json", "r") as f:
-            self.print_controller = bool(json.load(f)["print_controller"])
 
     def run_step(self):
         """
@@ -250,27 +244,17 @@ class StanleyLateralController():
         
         # Get Target Waypoint
         ce_idx = self._get_lookahead_index(ego_loc,self._lookahead_distance)
-
-        # Manage offset
-        offset_x = 0.0
-        offset_y = 0.0
-        w_tran = self._wps[ce_idx][0].transform
-        if self._offset != 0.0:
-            # Displace the wp to the side
-            r_vec = w_tran.get_right_vector()
-            offset_x = self._offset*r_vec.x
-            offset_y = self._offset*r_vec.y
-        desired_x = w_tran.location.x + offset_x
-        desired_y = w_tran.location.y + offset_y
-
+        desired_x = self._wps[ce_idx][0].transform.location.x
+        desired_y = self._wps[ce_idx][0].transform.location.y
+        
         # Get Target Heading
         if ce_idx < len(self._wps)-1:
-            desired_heading_x = (self._wps[ce_idx+1][0].transform.location.x + offset_x) - desired_x
-            desired_heading_y = (self._wps[ce_idx+1][0].transform.location.y + offset_y) - desired_y
+            desired_heading_x = self._wps[ce_idx+1][0].transform.location.x - self._wps[ce_idx][0].transform.location.x
+            desired_heading_y = self._wps[ce_idx+1][0].transform.location.y - self._wps[ce_idx][0].transform.location.y
         else:
-            desired_heading_x = desired_x - (self._wps[ce_idx-1][0].transform.location.x + offset_x)
-            desired_heading_y = desired_y - (self._wps[ce_idx-1][0].transform.location.y + offset_y)
-
+            desired_heading_x = self._wps[ce_idx][0].transform.location.x - self._wps[ce_idx-1][0].transform.location.x
+            desired_heading_y = self._wps[ce_idx][0].transform.location.y - self._wps[ce_idx-1][0].transform.location.y
+        
         # Trajectory Heading
         desired_heading = atan2(desired_heading_y, desired_heading_x)
         
@@ -284,26 +268,23 @@ class StanleyLateralController():
         
         # Heading error
         steering = (desired_heading-observed_heading)
-            
-        steering_error = steering
-        
-        # Stanley Control Law   
-        lateral_steering = atan(self._kv * lateral_error /
-                               (self._ks + speed_estimate))
-        print(lateral_steering)
-        steering += lateral_steering
-
-        if self.print_controller:
-            print("Current Heading: ", observed_heading, " - Desired Heading: ", desired_heading)
-            print("Heading error: ", steering_error, "Crosstrack error: ", lateral_error, "Crosstrack steering: ", lateral_steering)
-            print("Output: ", steering)
         
         # Normalization to [-pi, pi]
         while (steering<-np.pi):
             steering += 2*np.pi
         while (steering>np.pi):
             steering -= 2*np.pi
-
+            
+        steering_error = steering
+        
+        # Stanley Control Law   
+        steering += atan(self._kv * lateral_error /
+                               (self._ks + speed_estimate))
+        
+        # print("Current Heading: ", observed_heading, " - Desired Heading: ", desired_heading)
+        # print("Heading error: ", steering_error, "Crosstrack error: ", lateral_error)
+        # print("Output: ", steering)
+        
         return np.clip(steering, -1.0, 1.0)
 
     def change_parameters(self, Kv, Ks, dt):
