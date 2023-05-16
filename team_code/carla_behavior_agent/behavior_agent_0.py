@@ -550,9 +550,20 @@ class BehaviorAgent(BasicAgent):
                 # self.check_free(ego_wp, transform_list, "normal")
                 if (self.check_occupied(ego_wp, transform_list, "overtake")): 
                     print("\n\nstop overtake", step)
-                    for index in range(len(offsets)-1, -1, -1):
-                        print("cleaned", index)
-                        offsets[index] = 0.0
+
+                    if any([x < 0.0 for x in offsets[step-steps_to_consider_cleanup:step]]):
+                        overtake_started = False
+                        for index in range(len(offsets)-1, -1, -1):
+
+                            if offsets[index] < 0.0:
+                                overtake_started = True
+
+                            if not offsets[index] < 0.0 and overtake_started:
+                                break
+
+                            print("cleaned", index)
+                            offsets[index] = 0.0
+                            
                     offset = 0.0
                     overtaking = False
                 # Normal lane occupied
