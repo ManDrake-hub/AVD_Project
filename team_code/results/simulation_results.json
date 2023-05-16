@@ -3,14 +3,14 @@
         "global_record": {
             "index": -1,
             "route_id": -1,
-            "status": "Completed",
+            "status": "Failed",
             "infractions": {
                 "collisions_layout": 0.0,
                 "collisions_pedestrian": 0.0,
                 "collisions_vehicle": 0.0,
-                "red_light": 4.523,
-                "stop_infraction": 1.131,
-                "outside_route_lanes": 0,
+                "red_light": 0.0,
+                "stop_infraction": 0.241,
+                "outside_route_lanes": 0.013,
                 "min_speed_infractions": 0.0,
                 "yield_emergency_vehicles_infractions": 0.0,
                 "scenario_timeouts": 0.0,
@@ -19,9 +19,9 @@
                 "route_timeout": 0.0
             },
             "scores_mean": {
-                "score_composed": 19.208,
-                "score_route": 100.0,
-                "score_penalty": 0.19208
+                "score_composed": 78.488738,
+                "score_route": 98.41,
+                "score_penalty": 0.797569
             },
             "scores_std_dev": {
                 "score_composed": "NaN",
@@ -29,7 +29,13 @@
                 "score_penalty": "NaN"
             },
             "meta": {
-                "exceptions": []
+                "exceptions": [
+                    [
+                        "RouteScenario_0_rep0",
+                        0,
+                        "Failed - Agent crashed"
+                    ]
+                ]
             }
         },
         "progress": [
@@ -39,23 +45,20 @@
         "records": [
             {
                 "index": 0,
-                "route_id": "RouteScenario_2_rep0",
-                "status": "Completed",
-                "num_infractions": 5,
+                "route_id": "RouteScenario_0_rep0",
+                "status": "Failed - Agent crashed",
+                "num_infractions": 2,
                 "infractions": {
                     "collisions_layout": [],
                     "collisions_pedestrian": [],
                     "collisions_vehicle": [],
-                    "red_light": [
-                        "Agent ran a red light 1448 at (x=252.988, y=3805.928, z=363.679)",
-                        "Agent ran a red light 1479 at (x=151.842, y=3806.208, z=365.122)",
-                        "Agent ran a red light 1441 at (x=-66.425, y=3806.756, z=368.191)",
-                        "Agent ran a red light 844 at (x=-66.288, y=3699.326, z=365.352)"
-                    ],
+                    "red_light": [],
                     "stop_infraction": [
-                        "Agent ran a stop with id=31 at (x=-66.877, y=3496.25, z=364.55)"
+                        "Agent ran a stop with id=30727 at (x=-2930.142, y=3888.182, z=360.212)"
                     ],
-                    "outside_route_lanes": [],
+                    "outside_route_lanes": [
+                        "Agent went outside its route lanes for about 12.594 meters (0.3% of the completed route)"
+                    ],
                     "min_speed_infractions": [],
                     "yield_emergency_vehicles_infractions": [],
                     "scenario_timeouts": [],
@@ -64,14 +67,14 @@
                     "route_timeout": []
                 },
                 "scores": {
-                    "score_route": 100,
-                    "score_penalty": 0.19208,
-                    "score_composed": 19.208
+                    "score_route": 98.41,
+                    "score_penalty": 0.797569,
+                    "score_composed": 78.488738
                 },
                 "meta": {
-                    "route_length": 884.393,
-                    "duration_game": 235.65,
-                    "duration_system": 268.661
+                    "route_length": 4210.947,
+                    "duration_game": 708.6,
+                    "duration_system": 1079.228
                 }
             }
         ]
@@ -82,15 +85,15 @@
         "carla_speedometer"
     ],
     "values": [
-        "19.208",
-        "100.0",
-        "0.19208",
+        "78.488738",
+        "98.41",
+        "0.797569",
         "0.0",
         "0.0",
         "0.0",
-        "4.523",
-        "1.131",
-        "0",
+        "0.0",
+        "0.241",
+        "0.013",
         "0.0",
         "0.0",
         "0.0",
