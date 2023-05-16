@@ -396,8 +396,8 @@ class BehaviorAgent(BasicAgent):
         ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
         ego_vehicle_transform = self._vehicle.get_transform()
 
-        vehicle_list = list(self._world.get_actors().filter("*vehicle*"))
-        vehicle_list += list(self._world.get_actors().filter("*static.prop*"))
+        vehicle_list = self._world.get_actors().filter("*vehicle*")
+        prop_list = self._world.get_actors().filter("*static.prop*")
 
         walker_list = self._world.get_actors().filter("*walker*")
         for vehicle in vehicle_list:
@@ -408,17 +408,20 @@ class BehaviorAgent(BasicAgent):
 
         offsets = []
         _prev_offset = self.prev_offset
-        stop_overtake = False
+        steps_to_consider_cleanup = 3
         stop_walkers = False
         speed_front = None
         normal_free = True
         left_free = True
+        right_free = True
         overtaking = False
         steps_to_consider_offset = 7
         steps_to_consider_speed = 7
         base_max_steps = 7
 
         print("#######################################################")
+        ego_loc_preds = []
+
         max_steps = base_max_steps
         step = -1
         while step < max_steps:
@@ -430,6 +433,7 @@ class BehaviorAgent(BasicAgent):
             if step == -1:
                 ego_wp, ego_transform_pred, ego_loc_pred = ego_vehicle_wp, ego_vehicle_transform, ego_vehicle_loc
 
+
                 _vehicle_list = []
                 for vel in vehicle_list:
                     if misc.is_hero(vel):
@@ -439,6 +443,17 @@ class BehaviorAgent(BasicAgent):
                         _vehicle_list.append(vel)
                 vehicle_list = _vehicle_list
 
+
+                _prop_list = []
+                for prop in prop_list:
+                    if misc.is_hero(prop):
+                        continue
+                    _distance, _angle = utils_sensors.compute_magnitude_angle_with_sign(prop.get_location(), ego_loc_pred, ego_transform_pred.rotation.yaw)
+                    if -90 <= _angle <= 90 or ((-180 <= _angle < -90 or 90 < _angle <= 180) and _distance < 7):
+                        _prop_list.append(prop)
+                prop_list = _prop_list
+
+
                 _walker_list = []
                 for walker in walker_list:
                     if abs(walker.get_location().z - ego_loc_pred.z) > 2.0:
@@ -446,23 +461,28 @@ class BehaviorAgent(BasicAgent):
                     _walker_list.append(walker)
                 walker_list = _walker_list
 
+
                 transform_list = [(x, x.get_location(), x.get_transform().rotation) for x in vehicle_list]
+                transform_list_prop = [(x, x.get_location(), x.get_transform().rotation) for x in prop_list]
                 transform_list_walkers = [(x, x.get_location(), x.get_transform().rotation) for x in walker_list]
             else:
                 ego_wp, ego_transform_pred, ego_loc_pred = self.predict_ego_data(_prev_offset, self.get_ego_time_from_step(step))
-                transform_list = self.predict_locations(vehicle_list, step * 0.25)
+                transform_list = self.predict_locations(vehicle_list, step * 0.25) + transform_list_prop
+
                 transform_list_walkers = self.predict_locations_unexact(walker_list, step * 0.25)
 
-            if step < steps_to_consider_offset:
-                for vel, location, _ in transform_list:
-                    if misc.is_hero(vel):
-                        continue
-                    draw_point(self._world, location, color=(0, 128, 255, 255), life_time=self.time_step + 0.01)
-                for vel, location, _ in transform_list_walkers:
-                    if misc.is_hero(vel):
-                        continue
-                    draw_point(self._world, location, color=(0, 0, 255, 255), life_time=self.time_step + 0.01)
-                draw_point(self._world, ego_loc_pred, color=(255, 0, 0, 255), life_time=self.time_step + 0.01)
+            ego_loc_preds.append(ego_loc_pred)
+
+            # if step < steps_to_consider_offset:
+            for vel, location, _ in transform_list:
+                if misc.is_hero(vel):
+                    continue
+                draw_point(self._world, location, color=(0, 128, 255, 255), life_time=self.time_step + 0.01)
+            for vel, location, _ in transform_list_walkers:
+                if misc.is_hero(vel):
+                    continue
+                draw_point(self._world, location, color=(0, 0, 255, 255), life_time=self.time_step + 0.01)
+            draw_point(self._world, ego_loc_pred, color=(255, 0, 0, 255), life_time=self.time_step + 0.01)
             # draw_point(self._world, ego_loc_pred, color=(255, 0, 0, 255) if not step == -1 else (255, 255, 0, 255), life_time=-1)
             #############################
 
@@ -505,6 +525,19 @@ class BehaviorAgent(BasicAgent):
                     offset = self.dodge_offset
                     _vel, transform = self.check_vehicles(ego_wp, transform_list, "overtake")[0]
 
+                    if any([x < 0.0 for x in offsets[step-steps_to_consider_cleanup:step]]):
+                        overtake_started = False
+                        for index in range(len(offsets)-1, -1, -1):
+
+                            if offsets[index] < 0.0:
+                                overtake_started = True
+
+                            if not offsets[index] < 0.0 and overtake_started:
+                                break
+
+                            print("cleaned", index)
+                            offsets[index] = 0.0
+
                     self._world.debug.draw_box(carla.BoundingBox(ego_transform_pred.location, self._vehicle.bounding_box.extent), 
                                                ego_transform_pred.rotation, life_time=0.06)
                     self._world.debug.draw_box(carla.BoundingBox(transform.location, _vel.bounding_box.extent), 
@@ -523,6 +556,7 @@ class BehaviorAgent(BasicAgent):
                         print("cleaned", index)
                         offsets[index] = 0.0
                     print("cleaning overtake")
+                            
                     offset = 0.0
                     overtaking = False
                 # Normal lane occupied
@@ -558,6 +592,9 @@ class BehaviorAgent(BasicAgent):
 
             if step < steps_to_consider_offset and self.check_occupied(ego_wp, transform_list, "normal"):
                 normal_free = False
+
+            if step < steps_to_consider_offset and self.check_occupied(ego_wp, transform_list, "right"):
+                right_free = False
             #############################
 
 
@@ -569,10 +606,12 @@ class BehaviorAgent(BasicAgent):
         offsets = offsets[:steps_to_consider_offset]
         if any([x < 0.0 for x in offsets]) and ((left_free and not self.prev_offset < 0.0) or self.prev_offset < 0.0):
             offset_final = min(offsets)
-        elif any([x > 0.0 for x in offsets]) and ((normal_free and self.prev_offset < 0.0) or not self.prev_offset < 0.0):
+        elif any([x > 0.0 for x in offsets]) and ((right_free and self.prev_offset < 0.0) or not self.prev_offset < 0.0):
             offset_final = max(offsets)
-        else:
+        elif normal_free:
             offset_final = 0.0
+        else:
+            offset_final = self.prev_offset
         print("offset final:", offset_final)
         #############################
 
