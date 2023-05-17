@@ -404,6 +404,8 @@ class BehaviorAgent(BasicAgent):
             self.update_vehicle(vehicle)
         for walker in walker_list:
             self.update_vehicle(walker)
+        for prop in prop_list:
+            self.update_vehicle(prop)
         #############################
 
         offsets = []
@@ -462,8 +464,8 @@ class BehaviorAgent(BasicAgent):
                 walker_list = _walker_list
 
 
-                transform_list = [(x, x.get_location(), x.get_transform().rotation) for x in vehicle_list]
                 transform_list_prop = [(x, x.get_location(), x.get_transform().rotation) for x in prop_list]
+                transform_list = [(x, x.get_location(), x.get_transform().rotation) for x in vehicle_list] + transform_list_prop
                 transform_list_walkers = [(x, x.get_location(), x.get_transform().rotation) for x in walker_list]
             else:
                 ego_wp, ego_transform_pred, ego_loc_pred = self.predict_ego_data(_prev_offset, self.get_ego_time_from_step(step))
