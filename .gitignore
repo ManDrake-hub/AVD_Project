@@ -1,0 +1,7 @@
+# Ignore everything in repository root 
+userCode/run_test.sh
+
+# Files to not ignore
+
+
+# Folder to not ignore
