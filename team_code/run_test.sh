@@ -2,7 +2,8 @@
 # export ROUTES=./routes_avddiem_exam.xml
 # export ROUTES=./route_controlling.xml
 # export ROUTES=./second_scenario.xml
-export ROUTES=./first.xml
+# export ROUTES=./first.xml
+export ROUTES=./fourth.xml
 # export ROUTES=./test.xml
 
 export REPETITIONS=1

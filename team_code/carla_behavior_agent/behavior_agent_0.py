@@ -374,6 +374,20 @@ class BehaviorAgent(BasicAgent):
     def check_free(self, ego_wp, locations, direction: str):
         return len(self.check_vehicles(ego_wp, locations, direction)) == 0
 
+    def overtake_cleanup(self, offsets, step, steps_to_consider_cleanup):
+        if any([x < 0.0 for x in offsets[step-steps_to_consider_cleanup:step]]):
+            overtake_started = False
+            for index in range(len(offsets)-1, -1, -1):
+
+                if offsets[index] < 0.0:
+                    overtake_started = True
+
+                if not offsets[index] < 0.0 and overtake_started:
+                    break
+
+                print("cleaned", index)
+                offsets[index] = 0.0
+
     def run_step(self, debug=False):
         """
         Execute one step of navigation.
@@ -402,6 +416,8 @@ class BehaviorAgent(BasicAgent):
             self.update_vehicle(vehicle)
         for walker in walker_list:
             self.update_vehicle(walker)
+        for prop in prop_list:
+            self.update_vehicle(prop)
         #############################
 
         offsets = []
@@ -460,13 +476,12 @@ class BehaviorAgent(BasicAgent):
                 walker_list = _walker_list
 
 
-                transform_list = [(x, x.get_location(), x.get_transform().rotation) for x in vehicle_list]
                 transform_list_prop = [(x, x.get_location(), x.get_transform().rotation) for x in prop_list]
+                transform_list = [(x, x.get_location(), x.get_transform().rotation) for x in vehicle_list] + transform_list_prop
                 transform_list_walkers = [(x, x.get_location(), x.get_transform().rotation) for x in walker_list]
             else:
                 ego_wp, ego_transform_pred, ego_loc_pred = self.predict_ego_data(_prev_offset, self.get_ego_time_from_step(step))
                 transform_list = self.predict_locations(vehicle_list, step * 0.25) + transform_list_prop
-
                 transform_list_walkers = self.predict_locations_unexact(walker_list, step * 0.25)
 
             ego_loc_preds.append(ego_loc_pred)
@@ -504,13 +519,15 @@ class BehaviorAgent(BasicAgent):
                 self._world.debug.draw_box(carla.BoundingBox(transform.location, _vel.bounding_box.extent), 
                                             transform.rotation, life_time=0.06, color=carla.Color(0, 0, 255))
                 stop_walkers = True
-
-
             #############################
+
 
             #############################
             # Lane proposal
             #############################
+            if overtaking and ego_wp.is_junction:
+                self.overtake_cleanup(offsets, step, steps_to_consider_cleanup)
+
             if not overtaking:
                 if (self.check_occupied(ego_wp, transform_list, "normal") and
                     self.has_lane(ego_wp, "overtake") and 
@@ -523,18 +540,7 @@ class BehaviorAgent(BasicAgent):
                     offset = self.dodge_offset
                     _vel, transform = self.check_vehicles(ego_wp, transform_list, "overtake")[0]
 
-                    if any([x < 0.0 for x in offsets[step-steps_to_consider_cleanup:step]]):
-                        overtake_started = False
-                        for index in range(len(offsets)-1, -1, -1):
-
-                            if offsets[index] < 0.0:
-                                overtake_started = True
-
-                            if not offsets[index] < 0.0 and overtake_started:
-                                break
-
-                            print("cleaned", index)
-                            offsets[index] = 0.0
+                    self.overtake_cleanup(offsets, step, steps_to_consider_cleanup)
 
                     self._world.debug.draw_box(carla.BoundingBox(ego_transform_pred.location, self._vehicle.bounding_box.extent), 
                                                ego_transform_pred.rotation, life_time=0.06)
@@ -597,6 +603,7 @@ class BehaviorAgent(BasicAgent):
 
 
             step += 1
+
 
         #############################
         # Lane management
