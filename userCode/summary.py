@@ -13,7 +13,7 @@ custom_dict = {}
 infractions_dict_new = {"collisions_layout":"Coll with Layout", "collisions_pedestrian":"Coll with Pedestrians", "collisions_vehicle":"Coll with Vehicles", 
                         "red_light":"Red light", "stop_infraction":"Stop", "outside_route_lanes":"Outside lanes", "min_speed_infractions":"Useless Decelerations", 
                         "yield_emergency_vehicles_infractions":"Yield emergency vehicles", "scenario_timeouts":"Scenario timeouts"}
-score_dict_new = {"score_composed":"Driving score", "score_route":"Route Complention", "score_penalty":"Infraction Penalty", "duration_game":"Simulation time (s)"}
+score_dict_new = {"score_composed":"Driving score", "score_route":"Route Completion", "score_penalty":"Infraction Penalty", "duration_game":"Simulation time (s)"}
 shutdown_event_dict_new = {"route_dev":"Route Deviation", "vehicle_blocked":"Vehicle Blocked", "route_timeout":"Route Timeout"}
 
 file_json = 'results/simulation_results_must.json'
