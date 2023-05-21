@@ -388,9 +388,9 @@ class BehaviorAgent(BasicAgent):
 
             bbox = vehicle.bounding_box
             extent = carla.Vector3D(
-                x=(bbox.extent.x if bbox.extent.x > 1.0 else 1.0) + margin,
-                y=(bbox.extent.y if bbox.extent.y > 1.0 else 1.0) + margin,
-                z=(bbox.extent.z if bbox.extent.z > 1.0 else 1.0) + margin
+                x=(bbox.extent.x if bbox.extent.x > 0.5 else 0.5) + margin,
+                y=(bbox.extent.y if bbox.extent.y > 0.5 else 0.5) + margin,
+                z=(bbox.extent.z if bbox.extent.z > 0.5 else 0.5) + margin
             )
             bbox = carla.BoundingBox(carla.Location(), extent)
             transform = carla.Transform(location, rotation)
