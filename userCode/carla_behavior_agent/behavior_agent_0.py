@@ -568,7 +568,7 @@ class BehaviorAgent(BasicAgent):
                     self._world.debug.draw_box(carla.BoundingBox(transform.location, _vel.bounding_box.extent), 
                                                transform.rotation, life_time=0.06, color=carla.Color(0, 0, 255))
                     
-                    self._world.debug.draw_box(carla.BoundingBox(self.get_overtake_location(ego_wp), _vel.bounding_box.extent), 
+                    self._world.debug.draw_box(carla.BoundingBox(self.get_overtake_location(ego_wp), self._vehicle.bounding_box.extent), 
                                                ego_wp.transform.rotation, life_time=0.06, color=carla.Color(0, 255, 0))
                 else:
                     offset = 0.0
@@ -648,7 +648,7 @@ class BehaviorAgent(BasicAgent):
         # Speed management
         #############################
         if offset_final < 0:
-            speed_final = 45
+            speed_final = 55
         elif speed_front is not None:
             speed_final = speed_front * 3.6
             #print("\nspeed front", speed_final)
