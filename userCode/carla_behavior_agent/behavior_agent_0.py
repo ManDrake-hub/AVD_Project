@@ -175,7 +175,17 @@ class BehaviorAgent(BasicAgent):
             steps=self._look_ahead_steps)
         if self._incoming_direction is None:
             self._incoming_direction = RoadOption.LANEFOLLOW
+    
+    def traffic_light_manager(self):
+        """
+        This method is in charge of behaviors for red lights.
+        """
+        actor_list = self._world.get_actors()
+        lights_list = actor_list.filter("*traffic_light*")
+        affected, _ = self._affected_by_traffic_light(lights_list)
 
+        return affected
+    
     def print_state(self, state: str, line: int):
         # Serve per scrivere una stringa sopra la macchina in modo tale che se vuoi mettere "capocchia", se vuoi mettere più capocchie basta specificare la "line"
         draw_string(self._world, self._vehicle.get_location() - carla.Location(x=(line+1)*0.75), state, self.color)
@@ -451,7 +461,9 @@ class BehaviorAgent(BasicAgent):
         steps_to_consider_offset = 7
         steps_to_consider_speed = 7
         base_max_steps = 7
-
+        #TO-DO: insert traffic manager
+        #if self.traffic_light_manager():
+        #    return self.emergency_stop()
         print("#######################################################")
         ego_loc_preds = []
 

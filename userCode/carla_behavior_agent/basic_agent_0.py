@@ -11,6 +11,7 @@ It can also make use of the global route planner to follow a specifed route
 
 import carla
 from shapely.geometry import Polygon
+from misc import get_trafficlight_trigger_location
 
 # TODO: change imports based on index
 # from local_planner import LocalPlanner, RoadOption
