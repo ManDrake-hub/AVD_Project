@@ -1,6 +1,5 @@
-# Ignore everything in repository root 
 userCode/run_test.sh
-
+docker*
 # Files to not ignore
 
 
