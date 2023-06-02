@@ -25,7 +25,7 @@ from srunner.scenariomanager.watchdog import Watchdog
 from leaderboard.autoagents.agent_wrapper import AgentWrapperFactory, AgentError
 from leaderboard.envs.sensor_interface import SensorReceivedNoData
 from leaderboard.utils.result_writer import ResultOutputProvider
-
+from pynput import keyboard
 
 class ScenarioManager(object):
 
@@ -74,7 +74,27 @@ class ScenarioManager(object):
 
         # Use the callback_id inside the signal handler to allow external interrupts
         signal.signal(signal.SIGINT, self.signal_handler)
+        self.offset = 0
+        self.offset_step = 0.5
+        listener = keyboard.Listener(on_press=self.on_press)
+        listener.start()
 
+    def on_press(self, key):
+        try:
+            if key.char == "w":
+                self.offset -= self.offset_step
+                return
+
+            if key.char == "s":
+                self.offset += self.offset_step
+                return
+            
+            if key.char == "r":
+                self.offset = 0
+                return
+        except Exception as e:
+            pass
+        
     def signal_handler(self, signum, frame):
         """
         Terminate scenario ticking when receiving a signal interrupt
@@ -206,8 +226,9 @@ class ScenarioManager(object):
                 self._running = False
 
             ego_trans = self.ego_vehicles[0].get_transform()
-            self._spectator.set_transform(carla.Transform(ego_trans.location + carla.Location(z=70),
+            self._spectator.set_transform(carla.Transform(ego_trans.location + carla.Location(z=40+self.offset),
                                                           carla.Rotation(pitch=-90)))
+
 
     def get_running_status(self):
         """

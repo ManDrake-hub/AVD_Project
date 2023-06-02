@@ -20,6 +20,7 @@ import time
 import math
 from typing import List
 from shapely.geometry import Polygon
+from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 
 # TODO: import the one with the correct index
 # from basic_agent import BasicAgent
@@ -134,6 +135,13 @@ class BehaviorAgent(BasicAgent):
         self.n_speed_prediction = 10
         self.overtake_offset = -2.5 #(di quanto si deve spostare per fare l'overtake) probabilmente bisogna renderlo dipendente dalla dimensione della lane
         self.dodge_offset = 0.75 #(quanto si deve spostare a destra per spostare le macchine a sinistra) rendere inversamente proporzionale alla distanza dalla robba a sinistra
+        self.is_in_stop = False
+        self.must_stop = False
+
+        self._list_stop_signs = []
+        for _actor in CarlaDataProvider.get_all_actors():
+            if 'traffic.stop' in _actor.type_id:
+                self._list_stop_signs.append(_actor)
 
         ################################################################
         # Section for GA scoring system
@@ -258,12 +266,12 @@ class BehaviorAgent(BasicAgent):
 
             if distance < 0.3:
                 loc_pred = loc
-                rot_pred = wp.transform.rotation
+                rot_pred = vehicle.get_transform().rotation
+                # rot_pred = wp.transform.rotation
                 location_list.append((vehicle, loc_pred, rot_pred))
             else:
                 # offset_length = loc.distance(wp.transform.location)
                 # wp_right = wp.transform.get_right_vector()
-                print(len(wp.next(distance)))
                 for wp_next in wp.next(distance):
                     loc_pred = wp_next.transform.location
 
@@ -303,7 +311,13 @@ class BehaviorAgent(BasicAgent):
     def get_lane(self, location):
         return self._map.get_waypoint(location, lane_type=carla.LaneType.Any).lane_id
 
-    def overtake_cleanup(self, offsets, step, steps_to_consider_cleanup):
+    def overtake_cleanup(self, offsets, step, steps_to_consider_cleanup, break_threshold=3):
+        # TODO: This has been changed so that two cyclist close together would not get overtaken
+        # if collision on the left even if there is a single free spot between them. 
+        # Previous behavior: Would clean up the second overtake, but not the first and expected
+        # the car to move in between cyclist to avoid overtake which is hard or even impossible due
+        # to the car's size and approximations done 
+        _break_threshold = 0
         if any([x < 0.0 for x in offsets[step-steps_to_consider_cleanup:step]]):
             overtake_started = False
             for index in range(len(offsets)-1, -1, -1):
@@ -312,7 +326,9 @@ class BehaviorAgent(BasicAgent):
                     overtake_started = True
 
                 if not offsets[index] < 0.0 and overtake_started:
-                    break
+                    _break_threshold += 1
+                    if _break_threshold >= break_threshold:
+                        break
 
                 #print("cleaned", index)
                 offsets[index] = 0.0
@@ -334,8 +350,14 @@ class BehaviorAgent(BasicAgent):
             velocity_prevs.append(velocity)
             self.vehicles[vehicle.id] = (loc, velocity_prevs)
 
-    def get_ego_time_from_step(self, step):
-        return int(step * 0.25 * (self.get_base_speed() / 3.6))
+    def get_ego_distance_from_step(self, speed, step):
+        # TODO: This has been changed so that our predictions should be more accurate to reality
+        # without having the inf problem
+        # Speed in m/s
+        # _min_speed_km = 20
+        # speed = max(speed, (_min_speed_km / 3.6))
+        speed = self.get_base_speed() / 3.6
+        return int(step * 0.25 * speed)
 
     def has_lane(self, ego_wp, direction: str):
         # ritorna se tiene la lane di destra o di sinistra il waypoint
@@ -417,6 +439,67 @@ class BehaviorAgent(BasicAgent):
     def check_free(self, ego_wp, locations, direction: str):
         return len(self.check_vehicles(ego_wp, locations, direction)) == 0
 
+    def traffic_light_manager(self):
+        """
+        This method is in charge of behaviors for red lights.
+        """
+        actor_list = self._world.get_actors()
+        lights_list = actor_list.filter("*traffic_light*")
+        affected, _ = self._affected_by_traffic_light(lights_list)
+        return affected
+
+    def emergency_stop(self):
+        """
+        Overwrites the throttle a brake values of a control to perform an emergency stop.
+        The steering is kept the same to avoid going out of the lane when stopping during turns
+
+            :param speed (carl.VehicleControl): control to be modified
+        """
+        control = carla.VehicleControl()
+        control.throttle = 0.0
+        control.brake = self._max_brake
+        control.hand_brake = False
+        return control
+
+    def is_actor_affected_by_stop(self, wp, stop):
+        """
+        Taken from atomic_criteria.
+        Check if the given actor is affected by the stop.
+        Without using waypoints, a stop might not be detected if the actor is moving at the lane edge.
+        """
+        def point_inside_boundingbox(point, bb_center, bb_extent, multiplier=1.2):
+            """Checks whether or not a point is inside a bounding box."""
+
+            # pylint: disable=invalid-name
+            A = carla.Vector2D(bb_center.x - multiplier * bb_extent.x, bb_center.y - multiplier * bb_extent.y)
+            B = carla.Vector2D(bb_center.x + multiplier * bb_extent.x, bb_center.y - multiplier * bb_extent.y)
+            D = carla.Vector2D(bb_center.x - multiplier * bb_extent.x, bb_center.y + multiplier * bb_extent.y)
+            M = carla.Vector2D(point.x, point.y)
+
+            AB = B - A
+            AD = D - A
+            AM = M - A
+            am_ab = AM.x * AB.x + AM.y * AB.y
+            ab_ab = AB.x * AB.x + AB.y * AB.y
+            am_ad = AM.x * AD.x + AM.y * AD.y
+            ad_ad = AD.x * AD.x + AD.y * AD.y
+            return am_ab > 0 and am_ab < ab_ab and am_ad > 0 and am_ad < ad_ad
+        
+        PROXIMITY_THRESHOLD = 4 # From atomic criteria
+
+        # Quick distance test
+        stop_location = stop.get_transform().transform(stop.trigger_volume.location)
+        actor_location = wp.transform.location
+        if stop_location.distance(actor_location) > PROXIMITY_THRESHOLD:
+            return False
+
+        # Check if the any of the actor wps is inside the stop's bounding box.
+        # Using more than one waypoint removes issues with small trigger volumes and backwards movement
+        stop_extent = stop.trigger_volume.extent
+        if point_inside_boundingbox(wp.transform.location, stop_location, stop_extent):
+            return True
+        return False
+
     def run_step(self, debug=False):
         """
         Execute one step of navigation.
@@ -430,15 +513,26 @@ class BehaviorAgent(BasicAgent):
         self._update_information()
 
         #############################
+        # Traffic Light manager
+        #############################
+        if self.traffic_light_manager():
+            print("Traffic light triggered")
+            return self.emergency_stop()
+        #############################
+
+
+        #############################
         # Obstacle Management
         #############################
         # Starting info
         ego_vehicle_loc = self._vehicle.get_location()
         ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
         ego_vehicle_transform = self._vehicle.get_transform()
+        ego_vehicle_speed = self._vehicle.get_velocity().length()
 
         vehicle_list = self._world.get_actors().filter("*vehicle*")
-        prop_list = self._world.get_actors().filter("*static.prop*")
+        prop_list = self._world.get_actors().filter("*static.prop.[!mesh]*")
+        vehicle_parked_list = self._world.get_actors().filter("static.prop.mesh")
 
         walker_list = self._world.get_actors().filter("*walker*")
         for vehicle in vehicle_list:
@@ -447,11 +541,36 @@ class BehaviorAgent(BasicAgent):
             self.update_vehicle(walker)
         for prop in prop_list:
             self.update_vehicle(prop)
+        for mesh in vehicle_parked_list:
+            self.update_vehicle(mesh)
         #############################
 
+
+        #############################
+        # Stop sign manager
+        #############################
+        SPEED_THRESHOLD = 0.1 / 2
+        affected_by_stop = any([self.is_actor_affected_by_stop(ego_vehicle_wp, stop) for stop in self._list_stop_signs])
+        if affected_by_stop:
+            if not self.is_in_stop:
+                self.is_in_stop = True
+                self.must_stop = True
+            else:
+                if ego_vehicle_speed < SPEED_THRESHOLD:
+                    self.must_stop = False
+        else:
+            self.is_in_stop = False
+            self.must_stop = False
+
+        if self.must_stop:
+            return self.emergency_stop()
+        #############################
+
+        
         offsets = []
         _prev_offset = self.prev_offset
-        steps_to_consider_cleanup = 3
+        steps_to_consider_cleanup = 5
+        break_threshold = 5
         stop_walkers = False
         speed_front = None
         normal_free = True
@@ -461,9 +580,6 @@ class BehaviorAgent(BasicAgent):
         steps_to_consider_offset = 7
         steps_to_consider_speed = 7
         base_max_steps = 7
-        #TO-DO: insert traffic manager
-        #if self.traffic_light_manager():
-        #    return self.emergency_stop()
         print("#######################################################")
         ego_loc_preds = []
 
@@ -508,10 +624,21 @@ class BehaviorAgent(BasicAgent):
 
 
                 transform_list_prop = [(x, x.get_location(), x.get_transform().rotation) for x in prop_list]
-                transform_list = [(x, x.get_location(), x.get_transform().rotation) for x in vehicle_list] + transform_list_prop # IL VEICOLO, LOCATION DEL VEICOLO, ROTATION DEL TRANSFORM DEL VEICOLO
+                for vel in vehicle_parked_list:
+                    rotation = vel.get_transform().rotation
+                    rotation = carla.Rotation(roll=rotation.roll, pitch=rotation.pitch, yaw=rotation.yaw + 90)
+                    transform_list_prop.append((vel, vel.get_location(), rotation))
+
+                transform_list = [(x, x.get_location(), x.get_transform().rotation) for x in vehicle_list] + transform_list_prop
                 transform_list_walkers = [(x, x.get_location(), x.get_transform().rotation) for x in walker_list]
+
+                if self.slow_down:
+                    for transform in transform_list:
+                        _vel, location, rotation = transform
+                        self._world.debug.draw_box(carla.BoundingBox(location, _vel.bounding_box.extent), 
+                                                    rotation, life_time=0.06, color=carla.Color(255, 255, 255))
             else:
-                ego_wp, ego_transform_pred, ego_loc_pred = self.predict_ego_data(_prev_offset, self.get_ego_time_from_step(step))
+                ego_wp, ego_transform_pred, ego_loc_pred = self.predict_ego_data(_prev_offset, self.get_ego_distance_from_step(ego_vehicle_speed, step))
                 transform_list = self.predict_locations(vehicle_list, step * 0.25) + transform_list_prop
 
                 transform_list_walkers = self.predict_locations_unexact(walker_list, step * 0.25)
@@ -551,13 +678,14 @@ class BehaviorAgent(BasicAgent):
                 self._world.debug.draw_box(carla.BoundingBox(transform.location, _vel.bounding_box.extent), 
                                             transform.rotation, life_time=0.06, color=carla.Color(0, 0, 255))
                 stop_walkers = True
-
-
             #############################
+
 
             #############################
             # Lane proposal
             #############################
+            self.overtake_offset = -ego_wp.lane_width
+            self._local_planner._base_min_distance = abs(self.overtake_offset) + 2.0
 
             if overtaking and ego_wp.is_junction:
                 self.overtake_cleanup(offsets, step, steps_to_consider_cleanup)
@@ -572,8 +700,8 @@ class BehaviorAgent(BasicAgent):
                 elif (self.has_lane(ego_wp, "overtake") and 
                       self.check_occupied(ego_wp, transform_list, "overtake")):
                     _vel, transform = self.check_vehicles(ego_wp, transform_list, "overtake")[0]
-                    offset = max(0, ego_wp.lane_width - transform.location.distance(ego_loc_pred))
-                    self.overtake_cleanup(offsets, step, steps_to_consider_cleanup)
+                    offset = max(0, 0.2 + ego_wp.lane_width - transform.location.distance(ego_loc_pred))
+                    self.overtake_cleanup(offsets, step, steps_to_consider_cleanup, break_threshold)
                     
                     self._world.debug.draw_box(carla.BoundingBox(ego_transform_pred.location, self._vehicle.bounding_box.extent), 
                                                ego_transform_pred.rotation, life_time=0.06)
