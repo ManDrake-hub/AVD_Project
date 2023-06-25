@@ -290,7 +290,6 @@ class StanleyLateralController():
         # Stanley Control Law   
         lateral_steering = atan(self._kv * lateral_error /
                                (self._ks + speed_estimate))
-        print(lateral_steering)
         steering += lateral_steering
 
         if self.print_controller:

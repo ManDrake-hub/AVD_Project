@@ -9,7 +9,7 @@ export CHALLENGE_TRACK_CODENAME=SENSORS
 export CARLA_HOST=localhost
 export CARLA_PORT=2000
 export CARLA_TRAFFIC_MANAGER_PORT=8000
-export CHECKPOINT_ENDPOINT=./results/results_must_last.json
+export CHECKPOINT_ENDPOINT=./results/results_must_last
 export DEBUG_CHECKPOINT_ENDPOINT=./results/live_results.txt
 export RESUME=0
 export TIMEOUT=60
@@ -19,7 +19,7 @@ python3 ../leaderboard/leaderboard/leaderboard_evaluator.py \
 --routes-subset=${ROUTES_SUBSET} \
 --repetitions=${REPETITIONS} \
 --track=${CHALLENGE_TRACK_CODENAME} \
---checkpoint=${CHECKPOINT_ENDPOINT} \
+--checkpoint="${CHECKPOINT_ENDPOINT}_0.json" \
 --debug-checkpoint=${DEBUG_CHECKPOINT_ENDPOINT} \
 --agent=${TEAM_AGENT} \
 --agent-config=${TEAM_CONFIG} \

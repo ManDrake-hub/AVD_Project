@@ -285,11 +285,6 @@ class BehaviorAgent(BasicAgent):
                     location_list.append((vehicle, loc_pred, rot_pred))
         return location_list
 
-    def can_stop_overtake(self, loc):
-        wp = self._map.get_waypoint(loc)
-        wp_planned, _ = self._local_planner.get_incoming_waypoint_and_direction(0)
-        return wp.lane_id == wp_planned.lane_id
-
     def predict_ego_data(self, prev_offset, step):
         # Utilizza l'offset dello step precedente e utilizza come waypoint di base quello del local planner in modo da seguire sempre la direzione del local planner 
         ego_wp, _ = self._local_planner.get_incoming_waypoint_and_direction(step)
@@ -337,7 +332,6 @@ class BehaviorAgent(BasicAgent):
 
                 #print("cleaned", index)
                 offsets[index] = 0.0
-        return offsets
 
     def update_vehicle(self, vehicle):
         
@@ -445,6 +439,11 @@ class BehaviorAgent(BasicAgent):
     def check_free(self, ego_wp, locations, direction: str):
         return len(self.check_vehicles(ego_wp, locations, direction)) == 0
 
+    def simple_cleanup(self, offsets):
+        for index in range(len(offsets)-1, -1, -1):
+            print("cleaned", index)
+            offsets[index] = 0.0
+
     def traffic_light_manager(self):
         """
         This method is in charge of behaviors for red lights.
@@ -537,7 +536,7 @@ class BehaviorAgent(BasicAgent):
         ego_vehicle_speed = self._vehicle.get_velocity().length()
 
         vehicle_list = self._world.get_actors().filter("*vehicle*")
-        prop_list = self._world.get_actors().filter("*static.prop.[!mesh]*")
+        prop_list = list(self._world.get_actors().filter("*static.prop.*traffic*")) + list(self._world.get_actors().filter("*static.prop.*cone*"))
         vehicle_parked_list = self._world.get_actors().filter("static.prop.mesh")
 
         walker_list = self._world.get_actors().filter("*walker*")
@@ -583,8 +582,9 @@ class BehaviorAgent(BasicAgent):
         left_free = True
         right_free = True
         overtaking = False
+        junction = False
         steps_to_consider_offset = 7
-        steps_to_consider_speed = 5
+        steps_to_consider_speed = 7
         base_max_steps = 7
         print("#######################################################")
         ego_loc_preds = []
@@ -704,8 +704,8 @@ class BehaviorAgent(BasicAgent):
                       self.check_occupied(ego_wp, transform_list, "overtake")):
                     _vel, transform = self.check_vehicles(ego_wp, transform_list, "overtake")[0]
                     offset = max(0, 0.2 + ego_wp.lane_width - transform.location.distance(ego_loc_pred))
-                    offsets = self.overtake_cleanup(offsets, step, steps_to_consider_cleanup, break_threshold)
-
+                    self.overtake_cleanup(offsets, step, steps_to_consider_cleanup, break_threshold)
+                    
                     self._world.debug.draw_box(carla.BoundingBox(ego_transform_pred.location, self._vehicle.bounding_box.extent), 
                                                ego_transform_pred.rotation, life_time=0.06)
                     self._world.debug.draw_box(carla.BoundingBox(transform.location, _vel.bounding_box.extent), 
@@ -717,10 +717,14 @@ class BehaviorAgent(BasicAgent):
                     offset = 0.0
             else:
                 # Overtake occupied and normal lane is free
-                if (self.check_occupied(ego_wp, transform_list, "overtake")):
-                    # for index in range(len(offsets)-1, -1, -1):
-                    #     offsets[index] = 0.0
-                    offsets = self.overtake_cleanup(offsets, step, steps_to_consider_cleanup, break_threshold)
+                # self.check_free(ego_wp, transform_list, "normal")
+                if (self.check_occupied(ego_wp, transform_list, "overtake")): 
+                    #print("\n\nstop overtake", step)
+                    for index in range(len(offsets)-1, -1, -1):
+                        print("cleaned", index)
+                        offsets[index] = 0.0
+                    #print("cleaning overtake")
+                            
                     offset = 0.0
                     overtaking = False
                 # Normal lane occupied
@@ -730,15 +734,17 @@ class BehaviorAgent(BasicAgent):
                     overtaking = True
                 # Else => follow road and stop overtake
                 else:
+                    #print("Stopping overtake")
                     overtaking = False
                     offset = 0.0
-
-            if overtaking and (ego_wp.is_junction or ego_vehicle_wp.is_junction):
-                offsets = self.overtake_cleanup(offsets, step, steps_to_consider_cleanup, break_threshold)
+            
+            if ego_wp.is_junction or ego_vehicle_wp.is_junction:
+                print("junction")
+                self.overtake_cleanup(offsets, step, steps_to_consider_cleanup, break_threshold)
+                self.simple_cleanup(offsets)
+                junction = True
+                overtaking = False
                 offset = 0.0
-
-            if ego_wp.is_junction:
-                max_steps = base_max_steps
 
             _prev_offset = offset
             offsets.append(offset)
@@ -751,6 +757,8 @@ class BehaviorAgent(BasicAgent):
             frontal_vehicles = self.check_vehicles(ego_wp, transform_list, "normal")
             if step < steps_to_consider_speed and speed_front is None and frontal_vehicles:
                 speed_front = self.get_vel_acc(frontal_vehicles[0][0])[0].length()
+                if step > 3:
+                    speed_front = max(5, speed_front)
             #############################
 
 
@@ -760,38 +768,47 @@ class BehaviorAgent(BasicAgent):
             if step < steps_to_consider_offset and self.check_occupied(ego_wp, transform_list, "overtake"):
                 left_free = False
 
-            if step < steps_to_consider_offset and self.check_occupied(ego_wp, transform_list, "normal"):
+            if step < 3 and self.check_occupied(ego_wp, transform_list, "normal"):
                 normal_free = False
 
             if step < steps_to_consider_offset and self.check_occupied(ego_wp, transform_list, "right"):
                 right_free = False
             #############################
 
-
+            max_steps = min(max_steps, 21)
             step += 1
 
         #############################
         # Lane management
         #############################
         offsets = offsets[:steps_to_consider_offset]
-        if any([x < 0.0 for x in offsets]) and ((left_free) or not self.can_stop_overtake(ego_vehicle_loc)):
+        if any([x < 0.0 for x in offsets]) and ((left_free and not self.prev_offset < 0.0) or self.prev_offset < 0.0):
             offset_final = min(offsets)
-        elif any([x > 0.0 for x in offsets]) and ((right_free) or self.can_stop_overtake(ego_vehicle_loc)):
+        elif any([x > 0.0 for x in offsets]) and ((right_free and self.prev_offset < 0.0) or not self.prev_offset < 0.0):
             offset_final = max(offsets)
-        elif normal_free or self.can_stop_overtake(ego_vehicle_loc):
+        elif normal_free:
             offset_final = 0.0
         else:
             offset_final = self.prev_offset
+        #print("offset final:", offset_final)
         #############################
 
+        #############################
+        # Junction management
+        #############################
+        if junction:
+            offset_final = 0.0
+            #print("Walkers overruled")
+        #############################
 
         #############################
         # Speed management
         #############################
         if offset_final < 0:
-            speed_final = 55
+            speed_final = 70
         elif speed_front is not None:
             speed_final = speed_front * 3.6
+            #print("\nspeed front", speed_final)
         else:
             speed_final = self.get_base_speed()
 
@@ -805,6 +822,7 @@ class BehaviorAgent(BasicAgent):
         if stop_walkers:
             speed_final = 0.0
             offset_final = 0.0
+            #print("Walkers overruled")
         #############################
 
         self.prev_offset = offset_final
