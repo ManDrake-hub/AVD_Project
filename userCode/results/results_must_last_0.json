@@ -3,191 +3,42 @@
         "global_record": {
             "index": -1,
             "route_id": -1,
-            "status": "Failed",
+            "status": "Completed",
             "infractions": {
                 "collisions_layout": 0.0,
                 "collisions_pedestrian": 0.0,
-                "collisions_vehicle": 0.789,
+                "collisions_vehicle": 1.111,
                 "red_light": 0.0,
-                "stop_infraction": 0.131,
-                "outside_route_lanes": 0.009,
-                "min_speed_infractions": 0.789,
+                "stop_infraction": 1.111,
+                "outside_route_lanes": 0,
+                "min_speed_infractions": 0.0,
                 "yield_emergency_vehicles_infractions": 0.0,
-                "scenario_timeouts": 0.131,
+                "scenario_timeouts": 0.0,
                 "route_dev": 0.0,
-                "vehicle_blocked": 0.131,
+                "vehicle_blocked": 0.0,
                 "route_timeout": 0.0
             },
             "scores_mean": {
-                "score_composed": 49.743654,
-                "score_route": 82.37,
-                "score_penalty": 0.541864
+                "score_composed": 48.0,
+                "score_route": 100.0,
+                "score_penalty": 0.48
             },
             "scores_std_dev": {
-                "score_composed": 36.727,
-                "score_route": 39.422,
-                "score_penalty": 0.305
+                "score_composed": "NaN",
+                "score_route": "NaN",
+                "score_penalty": "NaN"
             },
             "meta": {
-                "exceptions": [
-                    [
-                        "RouteScenario_1_rep0",
-                        1,
-                        "Failed - Agent got blocked"
-                    ]
-                ]
+                "exceptions": []
             }
         },
         "progress": [
-            5,
-            5
+            1,
+            1
         ],
         "records": [
             {
                 "index": 0,
-                "route_id": "RouteScenario_0_rep0",
-                "status": "Completed",
-                "num_infractions": 6,
-                "infractions": {
-                    "collisions_layout": [],
-                    "collisions_pedestrian": [],
-                    "collisions_vehicle": [
-                        "Agent collided against object with type=vehicle.nissan.patrol_2021 and id=18881 at (x=-3052.371, y=3990.549, z=361.172)",
-                        "Agent collided against object with type=vehicle.nissan.patrol_2021 and id=18881 at (x=-2958.227, y=3904.053, z=360.44)"
-                    ],
-                    "red_light": [],
-                    "stop_infraction": [
-                        "Agent ran a stop with id=15107 at (x=-2930.142, y=3888.182, z=360.212)"
-                    ],
-                    "outside_route_lanes": [
-                        "Agent went outside its route lanes for about 9.386 meters (0.22% of the completed route)"
-                    ],
-                    "min_speed_infractions": [
-                        "Average speed is 91.54% of the surrounding traffic's one",
-                        "Average speed is 91.54% of the surrounding traffic's one"
-                    ],
-                    "yield_emergency_vehicles_infractions": [],
-                    "scenario_timeouts": [],
-                    "route_dev": [],
-                    "vehicle_blocked": [],
-                    "route_timeout": []
-                },
-                "scores": {
-                    "score_route": 100,
-                    "score_penalty": 0.272955,
-                    "score_composed": 27.295542
-                },
-                "meta": {
-                    "route_length": 4210.947,
-                    "duration_game": 497.95,
-                    "duration_system": 809.89
-                }
-            },
-            {
-                "index": 1,
-                "route_id": "RouteScenario_1_rep0",
-                "status": "Failed - Agent got blocked",
-                "num_infractions": 4,
-                "infractions": {
-                    "collisions_layout": [],
-                    "collisions_pedestrian": [],
-                    "collisions_vehicle": [
-                        "Agent collided against object with type=vehicle.audi.tt and id=22761 at (x=-1568.736, y=1610.544, z=324.324)",
-                        "Agent collided against object with type=vehicle.audi.tt and id=22782 at (x=-1631.443, y=1610.171, z=324.967)"
-                    ],
-                    "red_light": [],
-                    "stop_infraction": [],
-                    "outside_route_lanes": [],
-                    "min_speed_infractions": [],
-                    "yield_emergency_vehicles_infractions": [],
-                    "scenario_timeouts": [
-                        "Agent timed out a scenario"
-                    ],
-                    "route_dev": [],
-                    "vehicle_blocked": [
-                        "Agent got blocked at (x=-1632.188, y=1609.889, z=324.985)"
-                    ],
-                    "route_timeout": []
-                },
-                "scores": {
-                    "score_route": 11.85,
-                    "score_penalty": 0.252,
-                    "score_composed": 2.9862
-                },
-                "meta": {
-                    "route_length": 3206.913,
-                    "duration_game": 452.95,
-                    "duration_system": 954.065
-                }
-            },
-            {
-                "index": 2,
-                "route_id": "RouteScenario_2_rep0",
-                "status": "Completed",
-                "num_infractions": 4,
-                "infractions": {
-                    "collisions_layout": [],
-                    "collisions_pedestrian": [],
-                    "collisions_vehicle": [
-                        "Agent collided against object with type=vehicle.mini.cooper_s_2021 and id=26700 at (x=-70.814, y=3495.159, z=364.6)"
-                    ],
-                    "red_light": [],
-                    "stop_infraction": [],
-                    "outside_route_lanes": [],
-                    "min_speed_infractions": [
-                        "Average speed is 96.95% of the surrounding traffic's one",
-                        "Average speed is 99.31% of the surrounding traffic's one",
-                        "Average speed is 99.31% of the surrounding traffic's one"
-                    ],
-                    "yield_emergency_vehicles_infractions": [],
-                    "scenario_timeouts": [],
-                    "route_dev": [],
-                    "vehicle_blocked": [],
-                    "route_timeout": []
-                },
-                "scores": {
-                    "score_route": 100,
-                    "score_penalty": 0.592051,
-                    "score_composed": 59.205128
-                },
-                "meta": {
-                    "route_length": 884.393,
-                    "duration_game": 203.85,
-                    "duration_system": 554.722
-                }
-            },
-            {
-                "index": 3,
-                "route_id": "RouteScenario_3_rep0",
-                "status": "Perfect",
-                "num_infractions": 0,
-                "infractions": {
-                    "collisions_layout": [],
-                    "collisions_pedestrian": [],
-                    "collisions_vehicle": [],
-                    "red_light": [],
-                    "stop_infraction": [],
-                    "outside_route_lanes": [],
-                    "min_speed_infractions": [],
-                    "yield_emergency_vehicles_infractions": [],
-                    "scenario_timeouts": [],
-                    "route_dev": [],
-                    "vehicle_blocked": [],
-                    "route_timeout": []
-                },
-                "scores": {
-                    "score_route": 100,
-                    "score_penalty": 1.0,
-                    "score_composed": 100.0
-                },
-                "meta": {
-                    "route_length": 1231.288,
-                    "duration_game": 370.4,
-                    "duration_system": 1838.926
-                }
-            },
-            {
-                "index": 4,
                 "route_id": "RouteScenario_4_rep0",
                 "status": "Completed",
                 "num_infractions": 2,
@@ -195,14 +46,14 @@
                     "collisions_layout": [],
                     "collisions_pedestrian": [],
                     "collisions_vehicle": [
-                        "Agent collided against object with type=vehicle.diamondback.century and id=42306 at (x=3693.049, y=2522.104, z=364.439)"
+                        "Agent collided against object with type=vehicle.diamondback.century and id=22284 at (x=3692.865, y=2522.154, z=364.438)"
                     ],
                     "red_light": [],
-                    "stop_infraction": [],
-                    "outside_route_lanes": [],
-                    "min_speed_infractions": [
-                        "Average speed is 95.73% of the surrounding traffic's one"
+                    "stop_infraction": [
+                        "Agent ran a stop with id=19205 at (x=3609.991, y=2520.459, z=363.879)"
                     ],
+                    "outside_route_lanes": [],
+                    "min_speed_infractions": [],
                     "yield_emergency_vehicles_infractions": [],
                     "scenario_timeouts": [],
                     "route_dev": [],
@@ -211,13 +62,13 @@
                 },
                 "scores": {
                     "score_route": 100,
-                    "score_penalty": 0.592314,
-                    "score_composed": 59.2314
+                    "score_penalty": 0.48,
+                    "score_composed": 48.0
                 },
                 "meta": {
                     "route_length": 900.445,
-                    "duration_game": 200.5,
-                    "duration_system": 180.926
+                    "duration_game": 185.75,
+                    "duration_system": 182.746
                 }
             }
         ]
@@ -228,21 +79,21 @@
         "carla_speedometer"
     ],
     "values": [
-        "49.743654",
-        "82.37",
-        "0.541864",
+        "48.0",
+        "100.0",
+        "0.48",
         "0.0",
-        "0.789",
-        "0.0",
-        "0.0",
-        "0.131",
-        "0.009",
+        "1.111",
         "0.0",
         "0.0",
-        "0.131",
+        "1.111",
+        "0",
         "0.0",
-        "0.131",
-        "0.789"
+        "0.0",
+        "0.0",
+        "0.0",
+        "0.0",
+        "0.0"
     ],
     "labels": [
         "Avg. driving score",

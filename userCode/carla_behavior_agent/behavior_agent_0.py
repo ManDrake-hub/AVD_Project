@@ -21,6 +21,7 @@ import math
 from typing import List
 from shapely.geometry import Polygon
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
+from srunner.scenariomanager.timer import GameTime
 
 # TODO: import the one with the correct index
 # from basic_agent import BasicAgent
@@ -137,6 +138,8 @@ class BehaviorAgent(BasicAgent):
         self.dodge_offset = 0.75 #(quanto si deve spostare a destra per spostare le macchine a sinistra) rendere inversamente proporzionale alla distanza dalla robba a sinistra
         self.is_in_stop = False
         self.must_stop = False
+        self.speed_offset = 0.0
+        self.stop_time: datetime.datetime = None
 
         self._list_stop_signs = []
         for _actor in CarlaDataProvider.get_all_actors():
@@ -210,6 +213,9 @@ class BehaviorAgent(BasicAgent):
             vel_y *= max_speed / vel.length()
             vel = carla.Vector3D(x=vel_x, y=vel_y, z=0)
         return vel, 0.0
+    
+    def get_if_same_road(self, vehicle):
+        return len(set([x for x in self.vehicles[vehicle.id][2]])) == 1
 
     def predict_locations_unexact(self, vehicle_list, time_step):
         # Viene utilizzata per cose che non dovrebbero seguire la strada ma si possono trovare ovunque e a cazz
@@ -311,7 +317,7 @@ class BehaviorAgent(BasicAgent):
     def get_lane(self, location):
         return self._map.get_waypoint(location, lane_type=carla.LaneType.Any).lane_id
 
-    def overtake_cleanup(self, offsets, step, steps_to_consider_cleanup, break_threshold=3):
+    def overtake_cleanup(self, offsets, step, steps_to_consider_cleanup, break_threshold):
         # TODO: This has been changed so that two cyclist close together would not get overtaken
         # if collision on the left even if there is a single free spot between them. 
         # Previous behavior: Would clean up the second overtake, but not the first and expected
@@ -328,36 +334,48 @@ class BehaviorAgent(BasicAgent):
                 if not offsets[index] < 0.0 and overtake_started:
                     _break_threshold += 1
                     if _break_threshold >= break_threshold:
-                        break
+                        # break
+                        pass
 
                 #print("cleaned", index)
                 offsets[index] = 0.0
 
     def update_vehicle(self, vehicle):
-        
         loc = vehicle.get_location()
+        road_id = self.get_lane(loc)
         if vehicle.id not in self.vehicles:
-            self.vehicles[vehicle.id] = (loc, [carla.Vector3D(x=0.0, y=0.0, z=0.0), ])
+            self.vehicles[vehicle.id] = (loc, [carla.Vector3D(x=0.0, y=0.0, z=0.0), ], [road_id, ])
         else:
-            loc_prev, velocity_prevs = self.vehicles[vehicle.id]
+            loc_prev, velocity_prevs, road_prevs = self.vehicles[vehicle.id]
             velocity = carla.Vector3D(x=(loc.x - loc_prev.x)/self.time_step,
                                       y=(loc.y - loc_prev.y)/self.time_step,
                                       z=0.0)
 
             if len(velocity_prevs) >= self.n_speed_prediction:
                 velocity_prevs.pop(0)
+            if len(road_prevs) >= self.n_speed_prediction:
+                road_prevs.pop(0)
             
             velocity_prevs.append(velocity)
-            self.vehicles[vehicle.id] = (loc, velocity_prevs)
+            road_prevs.append(road_id)
+            self.vehicles[vehicle.id] = (loc, velocity_prevs, road_prevs)
 
-    def get_ego_distance_from_step(self, speed, step):
+    def get_distance_from_step(self, speed, step):
         # TODO: This has been changed so that our predictions should be more accurate to reality
         # without having the inf problem
         # Speed in m/s
         # _min_speed_km = 20
         # speed = max(speed, (_min_speed_km / 3.6))
-        speed = self.get_base_speed() / 3.6
-        return int(step * 0.25 * speed)
+        speed = max(1, speed)
+        return math.ceil(step * 0.15 * speed)
+
+    def get_steps_from_distance(self, speed, distance):
+        # Speed in m/s
+        speed = max(1, speed)
+        return math.ceil(distance / speed / 0.15)
+
+    def get_steps_from_reaction_time(self, rt):
+        return math.ceil(rt / 0.15)
 
     def has_lane(self, ego_wp, direction: str):
         # ritorna se tiene la lane di destra o di sinistra il waypoint
@@ -441,7 +459,6 @@ class BehaviorAgent(BasicAgent):
 
     def simple_cleanup(self, offsets):
         for index in range(len(offsets)-1, -1, -1):
-            print("cleaned", index)
             offsets[index] = 0.0
 
     def traffic_light_manager(self):
@@ -536,12 +553,15 @@ class BehaviorAgent(BasicAgent):
         ego_vehicle_speed = self._vehicle.get_velocity().length()
 
         vehicle_list = self._world.get_actors().filter("*vehicle*")
+        # bike_list = self._world.get_actors().filter("*bike*")
         prop_list = list(self._world.get_actors().filter("*static.prop.*traffic*")) + list(self._world.get_actors().filter("*static.prop.*cone*"))
         vehicle_parked_list = self._world.get_actors().filter("static.prop.mesh")
 
         walker_list = self._world.get_actors().filter("*walker*")
         for vehicle in vehicle_list:
             self.update_vehicle(vehicle)
+        # for bike in bike_list:
+        #     self.update_vehicle(bike)
         for walker in walker_list:
             self.update_vehicle(walker)
         for prop in prop_list:
@@ -554,15 +574,19 @@ class BehaviorAgent(BasicAgent):
         #############################
         # Stop sign manager
         #############################
+
         SPEED_THRESHOLD = 0.1 / 2
         affected_by_stop = any([self.is_actor_affected_by_stop(ego_vehicle_wp, stop) for stop in self._list_stop_signs])
+        if affected_by_stop and self.stop_time is None:
+            self.stop_time = GameTime.get_time()
         if affected_by_stop:
             if not self.is_in_stop:
                 self.is_in_stop = True
                 self.must_stop = True
             else:
-                if ego_vehicle_speed < SPEED_THRESHOLD:
+                if ego_vehicle_speed < SPEED_THRESHOLD and (GameTime.get_time() - self.stop_time) > 4:
                     self.must_stop = False
+                    self.stop_time = None
         else:
             self.is_in_stop = False
             self.must_stop = False
@@ -574,8 +598,6 @@ class BehaviorAgent(BasicAgent):
         
         offsets = []
         _prev_offset = self.prev_offset
-        steps_to_consider_cleanup = 5
-        break_threshold = 5
         stop_walkers = False
         speed_front = None
         normal_free = True
@@ -583,23 +605,32 @@ class BehaviorAgent(BasicAgent):
         right_free = True
         overtaking = False
         junction = False
-        steps_to_consider_offset = 7
-        steps_to_consider_speed = 7
-        base_max_steps = 7
+
+        # RT = 2.0
+        # distance = RT * vel = 2.0 * 50 = 100
+        # 
+        # steps = (distance / vel) * time_step
+        # steps = (RT * vel / vel) * time_step = RT * time_step
+
+        self.speed_offset = 0.0
+        break_threshold = self.get_steps_from_reaction_time(2.0)
+        steps_to_consider_offset = self.get_steps_from_reaction_time(2.0)
+        steps_to_consider_speed = self.get_steps_from_reaction_time(2.0)
+        base_max_steps = self.get_steps_from_distance(ego_vehicle_speed, 50)
+        print(base_max_steps, steps_to_consider_offset)
         print("#######################################################")
-        ego_loc_preds = []
 
         max_steps = base_max_steps
         step = -1
         while step < max_steps:
-
+            steps_to_consider_normal_free = self.get_steps_from_distance(ego_vehicle_speed + self.speed_offset, 10)
+            steps_to_consider_cleanup = self.get_steps_from_distance(ego_vehicle_speed + self.speed_offset, 8)
 
             #############################
             # Location prediction
             #############################
             if step == -1:
                 ego_wp, ego_transform_pred, ego_loc_pred = ego_vehicle_wp, ego_vehicle_transform, ego_vehicle_loc
-
 
                 _vehicle_list = []
                 for vel in vehicle_list:
@@ -644,12 +675,12 @@ class BehaviorAgent(BasicAgent):
                         self._world.debug.draw_box(carla.BoundingBox(location, _vel.bounding_box.extent), 
                                                     rotation, life_time=0.06, color=carla.Color(255, 255, 255))
             else:
-                ego_wp, ego_transform_pred, ego_loc_pred = self.predict_ego_data(_prev_offset, self.get_ego_distance_from_step(ego_vehicle_speed, step))
-                transform_list = self.predict_locations(vehicle_list, step * 0.25) + transform_list_prop
+                ego_wp, ego_transform_pred, ego_loc_pred = self.predict_ego_data(_prev_offset, self.get_distance_from_step(ego_vehicle_speed + self.speed_offset, step))
+                transform_list = self.predict_locations(vehicle_list, step * 0.15) + transform_list_prop
 
-                transform_list_walkers = self.predict_locations_unexact(walker_list, step * 0.25)
-
-            ego_loc_preds.append(ego_loc_pred)
+                transform_list_walkers = self.predict_locations_unexact(walker_list, step * 0.15)
+                # bike_list_walkers = self.predict_locations_unexact(bike_list, step * 0.15)
+                # transform_list += bike_list_walkers
 
             # if step < steps_to_consider_offset:
             for vel, location, _ in transform_list:
@@ -721,7 +752,6 @@ class BehaviorAgent(BasicAgent):
                 if (self.check_occupied(ego_wp, transform_list, "overtake")): 
                     #print("\n\nstop overtake", step)
                     for index in range(len(offsets)-1, -1, -1):
-                        print("cleaned", index)
                         offsets[index] = 0.0
                     #print("cleaning overtake")
                             
@@ -739,12 +769,18 @@ class BehaviorAgent(BasicAgent):
                     offset = 0.0
             
             if ego_wp.is_junction or ego_vehicle_wp.is_junction:
-                print("junction")
                 self.overtake_cleanup(offsets, step, steps_to_consider_cleanup, break_threshold)
                 self.simple_cleanup(offsets)
                 junction = True
                 overtaking = False
                 offset = 0.0
+                max_steps = steps_to_consider_speed
+
+            if ((offset < 0.0 and ego_vehicle_speed + self.speed_offset < 70) or 
+                (not offset < 0.0 and speed_front is None and ego_vehicle_speed + self.speed_offset < self.get_base_speed()) or 
+                (not offset < 0.0 and speed_front is not None and ego_vehicle_speed + self.speed_offset < speed_front)):
+                self.speed_offset += 1.0
+            self.speed_offset = max(0, self.speed_offset)
 
             _prev_offset = offset
             offsets.append(offset)
@@ -755,20 +791,26 @@ class BehaviorAgent(BasicAgent):
             # Speed proposal
             #############################
             frontal_vehicles = self.check_vehicles(ego_wp, transform_list, "normal")
+            frontal_vehicles = [x for x in frontal_vehicles if self.get_if_same_road(x[0])]
             if step < steps_to_consider_speed and speed_front is None and frontal_vehicles:
                 speed_front = self.get_vel_acc(frontal_vehicles[0][0])[0].length()
-                if step > 3:
+                if step >= 5:
+                    speed_front = max(10, speed_front)
+                elif step >= 3:
                     speed_front = max(5, speed_front)
+                if (# not self.get_if_same_road(frontal_vehicles[0][0]) or 
+                    (ego_wp.lane_id != self.get_lane(frontal_vehicles[0][0].get_location()) and junction)):
+                    speed_front = 0.0
             #############################
 
 
             #############################
             # Right and Left free
             #############################
-            if step < steps_to_consider_offset and self.check_occupied(ego_wp, transform_list, "overtake"):
+            if -1 < step < steps_to_consider_offset and self.check_occupied(ego_wp, transform_list, "overtake"):
                 left_free = False
 
-            if step < 3 and self.check_occupied(ego_wp, transform_list, "normal"):
+            if step < steps_to_consider_normal_free and self.check_occupied(ego_wp, transform_list, "normal"):
                 normal_free = False
 
             if step < steps_to_consider_offset and self.check_occupied(ego_wp, transform_list, "right"):
@@ -782,7 +824,7 @@ class BehaviorAgent(BasicAgent):
         # Lane management
         #############################
         offsets = offsets[:steps_to_consider_offset]
-        if any([x < 0.0 for x in offsets]) and ((left_free and not self.prev_offset < 0.0) or self.prev_offset < 0.0):
+        if any([x < 0.0 for x in offsets]) and ((left_free and not self.prev_offset < 0.0) or self.prev_offset < 0.0) and speed_front is not None and speed_front < 5.0:
             offset_final = min(offsets)
         elif any([x > 0.0 for x in offsets]) and ((right_free and self.prev_offset < 0.0) or not self.prev_offset < 0.0):
             offset_final = max(offsets)
@@ -812,7 +854,7 @@ class BehaviorAgent(BasicAgent):
         else:
             speed_final = self.get_base_speed()
 
-        #print("speed final:", speed_final)
+        print("speed final:", speed_final, speed_front)
         #############################
 
 
